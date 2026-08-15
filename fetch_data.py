@@ -29,6 +29,14 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Windows consoles default to cp1252, which cannot encode characters the risk
+# report uses (e.g. the U+2248 "almost equal" sign). That raises
+# UnicodeEncodeError the moment output is piped or redirected — precisely how an
+# agent or a log capture reads it. Force UTF-8 on the way out.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 DATA_DIR = Path(__file__).resolve().parent / "data"
 

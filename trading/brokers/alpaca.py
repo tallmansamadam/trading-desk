@@ -16,7 +16,8 @@ system that moves money it is worth being able to read the exact HTTP call.
 Credentials come from the environment and are never logged:
     ALPACA_API_KEY, ALPACA_SECRET_KEY
 Optional:
-    ALPACA_DATA_FEED   iex (free, default) or sip (paid subscription)
+    ALPACA_DATA_FEED   pin a feed (iex / sip). Unset is best: Alpaca then
+                       serves whatever the account is entitled to.
 
 Paper vs live is decided ONLY by TRADING_MODE, which picks the base URL. Alpaca
 issues separate key pairs for paper and live, so paper keys simply fail to
@@ -33,6 +34,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 
 PAPER_BASE = "https://paper-api.alpaca.markets"
 LIVE_BASE = "https://api.alpaca.markets"
@@ -118,7 +120,12 @@ class AlpacaBroker:
         self.mode = mode
         self.timeout = timeout
         self.base = LIVE_BASE if mode == "live" else PAPER_BASE
-        self.feed = os.environ.get("ALPACA_DATA_FEED", "iex")
+        # Unset means "send no feed param", which lets Alpaca serve the best
+        # data the account is entitled to. Pinning feed=iex measurably degrades
+        # bars: IEX reports only IEX-routed prints, so SPY volume comes back
+        # ~1.5M instead of ~47M and closes differ in the cents. Set
+        # ALPACA_DATA_FEED only to deliberately pin a feed.
+        self.feed = os.environ.get("ALPACA_DATA_FEED", "").strip().lower()
 
         key = os.environ.get("ALPACA_API_KEY", "")
         secret = os.environ.get("ALPACA_SECRET_KEY", "")
@@ -179,6 +186,28 @@ class AlpacaBroker:
         if query:
             url += "?" + urllib.parse.urlencode(query)
         return self._request("GET", url)
+
+    def _feed_query(self) -> dict:
+        return {"feed": self.feed} if self.feed else {}
+
+    @staticmethod
+    def _lookback_days(timeframe: str, limit: int) -> int:
+        """Calendar days to look back to be sure `limit` bars are in range.
+
+        The bars endpoint requires `start` — without it Alpaca returns
+        {"bars": null} rather than an error, which is easy to mistake for
+        "no data".
+        """
+        tf = timeframe.lower()
+        multiplier = int("".join(c for c in tf if c.isdigit()) or 1)
+        per_trading_day = 1.0
+        for unit, rate in (("month", 0.05), ("week", 0.2), ("day", 1.0),
+                           ("hour", 7.0), ("min", 390.0)):
+            if unit in tf:
+                per_trading_day = rate / multiplier if rate >= 1 else rate
+                break
+        trading_days = limit / max(per_trading_day, 0.01)
+        return int(trading_days * 1.5) + 10  # weekends and holidays
 
     # -- identity / connection ----------------------------------------------
 
@@ -301,7 +330,7 @@ class AlpacaBroker:
         symbol = symbol.upper()
 
         try:
-            trade = self._data(f"/v2/stocks/{symbol}/trades/latest", {"feed": self.feed})
+            trade = self._data(f"/v2/stocks/{symbol}/trades/latest", self._feed_query())
             price = float(trade.get("trade", {}).get("p") or 0)
             if price > 0:
                 return price
@@ -309,7 +338,7 @@ class AlpacaBroker:
             pass
 
         try:
-            quote = self._data(f"/v2/stocks/{symbol}/quotes/latest", {"feed": self.feed})
+            quote = self._data(f"/v2/stocks/{symbol}/quotes/latest", self._feed_query())
             q = quote.get("quote", {})
             bid, ask = float(q.get("bp") or 0), float(q.get("ap") or 0)
             if bid > 0 and ask > 0:
@@ -322,7 +351,7 @@ class AlpacaBroker:
             last = bars[-1]
             print(
                 f"WARNING: no live quote for {symbol} (market closed, or the "
-                f"{self.feed.upper()} feed has no recent print). Sizing off the "
+                f"feed has no recent print). Sizing off the "
                 f"{last['t'][:10]} close ${float(last['c']):,.2f}. This price is "
                 "STALE — pass --limit for an accurate size."
             )
@@ -340,14 +369,14 @@ class AlpacaBroker:
             bid = ask = last = None
             try:
                 q = self._data(f"/v2/stocks/{symbol}/quotes/latest",
-                               {"feed": self.feed}).get("quote", {})
+                               self._feed_query()).get("quote", {})
                 bid = float(q.get("bp") or 0) or None
                 ask = float(q.get("ap") or 0) or None
             except AlpacaError:
                 pass
             try:
                 t = self._data(f"/v2/stocks/{symbol}/trades/latest",
-                               {"feed": self.feed}).get("trade", {})
+                               self._feed_query()).get("trade", {})
                 last = float(t.get("p") or 0) or None
             except AlpacaError:
                 pass
@@ -356,12 +385,23 @@ class AlpacaBroker:
 
     def historical_bars(self, symbol: str, timeframe: str = "1Day",
                         limit: int = 100) -> list[dict]:
-        payload = self._data(
-            f"/v2/stocks/{symbol.upper()}/bars",
-            {"timeframe": timeframe, "limit": limit, "feed": self.feed,
-             "adjustment": "all"},
-        )
-        return payload.get("bars") or []
+        """Most recent `limit` bars, oldest first.
+
+        sort=desc asks for the NEWEST bars; ascending order (the default) would
+        return the oldest `limit` bars after `start`, which is silently wrong —
+        stale data that still looks like a valid response.
+        """
+        start = (
+            datetime.now(timezone.utc).date()
+            - timedelta(days=self._lookback_days(timeframe, limit))
+        ).isoformat()
+        query = {
+            "timeframe": timeframe, "limit": limit, "start": start,
+            "sort": "desc", "adjustment": "all",
+        }
+        query.update(self._feed_query())
+        payload = self._data(f"/v2/stocks/{symbol.upper()}/bars", query)
+        return list(reversed(payload.get("bars") or []))
 
     # -- order entry ---------------------------------------------------------
 

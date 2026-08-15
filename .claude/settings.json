@@ -8,13 +8,22 @@
       "Bash(python trade.py pnl)",
       "Bash(python trade.py check:*)",
       "Bash(python trade.py halt)",
-      "Bash(python backtest.py:*)"
+      "Bash(python backtest.py:*)",
+      "Bash(python trade_alpaca.py status)",
+      "Bash(python trade_alpaca.py quote:*)",
+      "Bash(python trade_alpaca.py bars:*)",
+      "Bash(python trade_alpaca.py positions)",
+      "Bash(python trade_alpaca.py pnl)",
+      "Bash(python trade_alpaca.py check:*)"
     ],
     "ask": [
       "Bash(python trade.py order:*)",
       "Bash(python trade.py flatten:*)",
       "Bash(python trade.py cancel-all)",
-      "Bash(python trade.py resume)"
+      "Bash(python trade.py resume)",
+      "Bash(python trade_alpaca.py order:*)",
+      "Bash(python trade_alpaca.py flatten:*)",
+      "Bash(python trade_alpaca.py cancel-all)"
     ],
     "deny": [
       "Read(./.env)",

@@ -18,6 +18,14 @@ import importlib
 import math
 import sys
 
+# Windows consoles default to cp1252, which cannot encode characters the risk
+# report uses (e.g. the U+2248 "almost equal" sign). That raises
+# UnicodeEncodeError the moment output is piped or redirected — precisely how an
+# agent or a log capture reads it. Force UTF-8 on the way out.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 
 def load_closes_csv(path: str) -> tuple[list[str], list[float]]:
     """Load a bar CSV. Prefers 'adjclose' (dividend/split adjusted) when the

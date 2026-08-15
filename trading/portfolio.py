@@ -48,12 +48,12 @@ def open_orders_table(ib: IB) -> str:
     if not trades:
         return "No open orders."
     lines = [
-        f"{'Id':<8}{'Symbol':<8}{'Side':<6}{'Qty':>8}  {'Type':<6}"
+        f"{'Id':<10}{'Symbol':<8}{'Side':<6}{'Qty':>8}  {'Type':<6}"
         f"{'LmtPx':>10}  {'Filled':>8}  {'Status':<12}"
     ]
     for t in trades:
         lines.append(
-            f"{t.order.orderId:<8}{t.contract.symbol:<8}{t.order.action:<6}"
+            f"{t.order.orderId:<10}{t.contract.symbol:<8}{t.order.action:<6}"
             f"{t.order.totalQuantity:>8,.0f}  {t.order.orderType:<6}"
             f"{(t.order.lmtPrice or 0):>10,.2f}  {t.orderStatus.filled:>8,.0f}  "
             f"{t.orderStatus.status:<12}"
