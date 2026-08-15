@@ -187,6 +187,54 @@ class AlpacaBroker:
             url += "?" + urllib.parse.urlencode(query)
         return self._request("GET", url)
 
+    # -- crypto -----------------------------------------------------------
+    #
+    # Crypto is a different API surface, not a different symbol. The v1beta3
+    # endpoints key their payloads BY SYMBOL ({"quotes": {"BTC/USD": {...}}})
+    # where equities return a bare object, so every read needs unwrapping.
+    # Crypto also trades 24/7, settles fractionally, and rejects tif=day.
+
+    @staticmethod
+    def is_crypto(symbol: str) -> bool:
+        return "/" in symbol
+
+    def _crypto(self, path: str, symbol: str, extra: dict | None = None):
+        q = {"symbols": symbol.upper()}
+        q.update(extra or {})
+        url = f"{DATA_BASE}/v1beta3/crypto/us{path}?" + urllib.parse.urlencode(q)
+        return self._request("GET", url)
+
+    def crypto_quote(self, symbol: str) -> dict:
+        sym = symbol.upper()
+        payload = self._crypto("/latest/quotes", sym).get("quotes", {})
+        return payload.get(sym, {})
+
+    def crypto_trade(self, symbol: str) -> dict:
+        sym = symbol.upper()
+        payload = self._crypto("/latest/trades", sym).get("trades", {})
+        return payload.get(sym, {})
+
+    def spread_bp(self, symbol: str) -> float | None:
+        """Live round-trip cost in basis points. None if unquoted.
+
+        Worth knowing before trading anything short-horizon: on this venue a
+        crypto round trip runs 26-84 bp while the median minute moves 2-5 bp.
+        """
+        sym = symbol.upper()
+        try:
+            if self.is_crypto(sym):
+                q = self.crypto_quote(sym)
+                bid, ask = float(q.get("bp") or 0), float(q.get("ap") or 0)
+            else:
+                q = self._data(f"/v2/stocks/{sym}/quotes/latest",
+                               self._feed_query()).get("quote", {})
+                bid, ask = float(q.get("bp") or 0), float(q.get("ap") or 0)
+        except (AlpacaError, KeyError, TypeError, ValueError):
+            return None
+        if bid <= 0 or ask <= 0 or ask < bid:
+            return None
+        return (ask - bid) / ((ask + bid) / 2) * 10_000 * 2
+
     def _feed_query(self) -> dict:
         return {"feed": self.feed} if self.feed else {}
 
@@ -329,6 +377,16 @@ class AlpacaBroker:
         """
         symbol = symbol.upper()
 
+        if self.is_crypto(symbol):
+            t = self.crypto_trade(symbol)
+            if float(t.get("p") or 0) > 0:
+                return float(t["p"])
+            q = self.crypto_quote(symbol)
+            bid, ask = float(q.get("bp") or 0), float(q.get("ap") or 0)
+            if bid > 0 and ask > 0:
+                return (bid + ask) / 2
+            raise AlpacaError(f"No usable price for {symbol}; cannot size safely.")
+
         try:
             trade = self._data(f"/v2/stocks/{symbol}/trades/latest", self._feed_query())
             price = float(trade.get("trade", {}).get("p") or 0)
@@ -367,6 +425,16 @@ class AlpacaBroker:
         for symbol in symbols:
             symbol = symbol.upper()
             bid = ask = last = None
+            if self.is_crypto(symbol):
+                try:
+                    q = self.crypto_quote(symbol)
+                    bid = float(q.get("bp") or 0) or None
+                    ask = float(q.get("ap") or 0) or None
+                    last = float(self.crypto_trade(symbol).get("p") or 0) or None
+                except AlpacaError:
+                    pass
+                rows.append({"symbol": symbol, "bid": bid, "ask": ask, "last": last})
+                continue
             try:
                 q = self._data(f"/v2/stocks/{symbol}/quotes/latest",
                                self._feed_query()).get("quote", {})
@@ -395,20 +463,30 @@ class AlpacaBroker:
             datetime.now(timezone.utc).date()
             - timedelta(days=self._lookback_days(timeframe, limit))
         ).isoformat()
+        sym = symbol.upper()
+        if self.is_crypto(sym):
+            payload = self._crypto("/bars", sym, {
+                "timeframe": timeframe, "limit": limit,
+                "start": start, "sort": "desc"})
+            rows = (payload.get("bars") or {}).get(sym) or []   # keyed by symbol
+            return list(reversed(rows))
         query = {
             "timeframe": timeframe, "limit": limit, "start": start,
             "sort": "desc", "adjustment": "all",
         }
         query.update(self._feed_query())
-        payload = self._data(f"/v2/stocks/{symbol.upper()}/bars", query)
+        payload = self._data(f"/v2/stocks/{sym}/bars", query)
         return list(reversed(payload.get("bars") or []))
 
     # -- order entry ---------------------------------------------------------
 
     def place_order(self, symbol: str, side: str, quantity: float,
                     limit_price: float | None = None, tif: str = "day") -> Trade:
+        sym = symbol.upper()
+        if self.is_crypto(sym) and tif.lower() == "day":
+            tif = "gtc"          # crypto has no session, so day has no meaning
         body = {
-            "symbol": symbol.upper(),
+            "symbol": sym,
             "qty": str(quantity),
             "side": side.lower(),
             "type": "limit" if limit_price else "market",
