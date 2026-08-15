@@ -264,7 +264,11 @@ def main() -> None:
     print()
     print("Limits in force (from .env):")
     print(f"  max order notional    ${settings.max_order_notional:>12,.2f}")
-    print(f"  max position notional ${settings.max_position_notional:>12,.2f}")
+    print(f"  max position notional ${settings.max_position_notional:>12,.2f}   per symbol")
+    gross_cap = getattr(settings, "max_gross_notional", None)
+    if gross_cap is not None:
+        print(f"  max gross notional    ${gross_cap:>12,.2f}   book-wide "
+              f"(one symbol here, so it never binds)")
     print(f"  max daily loss        ${settings.max_daily_loss:>12,.2f}")
     print(f"  restricted symbols    {', '.join(settings.restricted_symbols) or '(none)'}")
     print()
