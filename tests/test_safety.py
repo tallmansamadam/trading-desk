@@ -20,7 +20,6 @@ from trading.config import HALT_FILE, Settings
 from trading.connection import ModeMismatchError, _verify_mode
 from trading.orders import place_order
 
-
 # --- stubs -----------------------------------------------------------------
 
 @dataclass

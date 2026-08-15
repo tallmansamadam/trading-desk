@@ -32,7 +32,7 @@ def generate_signals(closes: list[float], fast: int = 10, slow: int = 30) -> lis
     fast_ma = _sma(closes, fast)
     slow_ma = _sma(closes, slow)
     signals = []
-    for f, s in zip(fast_ma, slow_ma):
+    for f, s in zip(fast_ma, slow_ma, strict=True):
         if f is None or s is None:
             signals.append(0)
         else:

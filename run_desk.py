@@ -46,8 +46,9 @@ import json
 import signal as signal_mod
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import ClassVar
 
 from trading import risk
 from trading.brokers.alpaca import AlpacaBroker, AlpacaError
@@ -72,19 +73,22 @@ def _handle_sigint(signum, frame):
 class Journal:
     """Append-only record of every decision, not just every fill."""
 
-    FIELDS = ["ts", "event", "symbol", "side", "qty", "price", "detail"]
+    FIELDS: ClassVar[list[str]] = ["ts", "event", "symbol", "side",
+                                   "qty", "price", "detail"]
 
     def __init__(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
         self.new = not path.exists()
-        self.fh = open(path, "a", newline="", encoding="utf-8")
+        # Deliberately long-lived: the journal stays open for the life of
+        # the run and is closed in the finally block of run().
+        self.fh = open(path, "a", newline="", encoding="utf-8")  # noqa: SIM115
         self.w = csv.DictWriter(self.fh, fieldnames=self.FIELDS)
         if self.new:
             self.w.writeheader()
 
     def write(self, event, symbol="", side="", qty="", price="", detail=""):
-        row = {"ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        row = {"ts": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                "event": event, "symbol": symbol, "side": side, "qty": qty,
                "price": price, "detail": detail}
         self.w.writerow(row)
@@ -204,7 +208,6 @@ class Desk:
                                f"{self.spread_assumption:.2f} spread)  "
                                f"cumulative {self.realized_bp:+.2f} bp")
         self.submit(side, qty, limit, why)
-        self.spread_assumption = float(getattr(args, "spread_bp", 0.26))
         self.position = 0.0
         self.entry_px = 0.0
         self.entry_time = None
@@ -381,7 +384,7 @@ class Allocator:
         return per * len(self.symbols), per
 
     def current_values(self):
-        out = {s: 0.0 for s in self.symbols}
+        out = dict.fromkeys(self.symbols, 0.0)
         for item in self.b.portfolio():
             if item.contract.symbol in out:
                 out[item.contract.symbol] = float(item.marketValue)
@@ -389,7 +392,7 @@ class Allocator:
 
     def due(self):
         last = self.state.get("last_rebalance")
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now(UTC).date()
         if last is None:
             return True, "no prior rebalance recorded - establishing the book"
         gap = (today - datetime.fromisoformat(last).date()).days
@@ -506,7 +509,7 @@ class Allocator:
         # Only bank the rebalance date once the book is actually at target.
         # Recording it after a sliced pass would stop the remainder ever going.
         if deferred == 0 and not pending:
-            self.state["last_rebalance"] = datetime.now(timezone.utc).date().isoformat()
+            self.state["last_rebalance"] = datetime.now(UTC).date().isoformat()
             self._save_state()
         outstanding = []
         if deferred:

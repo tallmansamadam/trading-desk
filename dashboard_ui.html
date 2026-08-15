@@ -187,6 +187,7 @@ button:disabled:hover{background:var(--screen);color:inherit}
       <span class="k" id="nextopen"></span>
     </div>
     <div id="ctlmsg"></div>
+    <div class="k" style="margin-top:8px;font-size:11px">SERVICE LOG &mdash; LOCAL TIME</div>
     <div id="events"></div>
   </div>
 
@@ -217,6 +218,16 @@ const isDaily = () => tf === '1Day';
 const sessionDate = t => t.slice(0, 10);                 // daily: already correct
 const localDate = t => { const d = new Date(t);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+/* Service events arrive stamped UTC. Show them on the same clock as the
+   market panel, or the log reads hours out of step with everything beside it.
+   Events older than today keep a date, since the ring buffer spans days. */
+const fmtStamp = ts => {
+  const d = new Date(ts);
+  const p2 = n => String(n).padStart(2, '0');
+  const hms = `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+  return d.toDateString() === new Date().toDateString()
+       ? hms : `${p2(d.getMonth()+1)}-${p2(d.getDate())} ${hms.slice(0,5)}`;
+};
 const fmtTime = t => { const d = new Date(t);
   return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
 const gauge = (pct, w=18) => {
@@ -342,7 +353,7 @@ function render(d){
       ? 'MARKET OPEN' : (d.next_open ? 'NEXT OPEN ' + d.next_open + ' ET' : '');
     const ev = d.events || [];
     $('#events').innerHTML = ev.length
-      ? ev.map(e=>`<div>${e.ts.slice(11,19)} <b>${e.kind}</b> ${e.detail}</div>`).join('')
+      ? ev.map(e=>`<div>${fmtStamp(e.ts)} <b>${e.kind}</b> ${e.detail}</div>`).join('')
       : '<div>NO SERVICE EVENTS YET.</div>';
   }
 

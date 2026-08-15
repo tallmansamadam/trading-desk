@@ -72,7 +72,6 @@ def run_portfolio(closes: dict[str, list[float]], weights: list[dict[str, float]
                   cost_bps: float) -> dict:
     """Weights decided on bar i are held over bar i+1 — one bar of lag, matching
     backtest.py. Cost is charged on the L1 change in weights."""
-    symbols = sorted(closes)
     n = len(next(iter(closes.values())))
     cost = cost_bps / 10_000
     held: dict[str, float] = {}

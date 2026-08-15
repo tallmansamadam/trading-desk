@@ -62,7 +62,7 @@ def place_order(
 
     return (
         f"Order sent [{settings.mode.upper()}] {side} {quantity} {symbol.upper()} "
-        f"{'@ %.2f LMT' % limit_price if limit_price else 'MKT'} tif={tif} | "
+        f"{f'@ {limit_price:.2f} LMT' if limit_price else 'MKT'} tif={tif} | "
         f"id={trade.order.orderId} status={status.status or 'PendingSubmit'} | "
         f"{fill_detail}"
     )

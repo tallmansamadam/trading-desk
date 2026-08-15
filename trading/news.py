@@ -25,7 +25,6 @@ import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 
 USER_AGENT = "Mozilla/5.0 (trading-desk research)"
 

@@ -18,7 +18,7 @@ def generate_weights(closes: dict[str, list[float]], n_bars: int,
                      rebalance_days: int = 21) -> list[dict[str, float]]:
     symbols = sorted(closes)
     w = 1.0 / len(symbols)
-    target = {s: w for s in symbols}
+    target = dict.fromkeys(symbols, w)
     # The engine only acts when weights CHANGE, so emitting the same dict every
     # bar means "rebalance back to equal weight on the rebalance cadence".
     out = []

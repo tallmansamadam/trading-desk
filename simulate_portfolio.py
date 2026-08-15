@@ -80,7 +80,7 @@ def main() -> None:
         series = [bars[sym][d] for d in dates]
         closes = [b["close"] for b in series]
         sig = module.generate_signals(closes, **params)
-        signals[sym] = {d: s for d, s in zip(dates, sig)}
+        signals[sym] = dict(zip(dates, sig, strict=True))
 
     cost = args.cost_bps / 10_000
     broker = SimBroker()

@@ -21,8 +21,8 @@ import sys
 import threading
 import time
 import webbrowser
-from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from trading.brokers.alpaca import AlpacaBroker, AlpacaError

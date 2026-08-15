@@ -96,8 +96,8 @@ def main() -> None:
     if args.command == "resume":
         return cmd_resume(args)
 
-    from trading.connection import ibkr_session
     from trading import market_data, orders, portfolio, risk
+    from trading.connection import ibkr_session
 
     settings = load_settings()
     if trading_halted() and args.command == "order":

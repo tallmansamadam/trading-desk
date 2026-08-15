@@ -73,10 +73,10 @@ class BookIB:
 
 
 def _settings(**kw):
-    base = dict(
-        mode="paper", max_order_notional=5_000, max_position_notional=10_000,
-        max_open_orders=10, max_daily_loss=500,
-    )
+    base = {
+        "mode": "paper", "max_order_notional": 5_000, "max_position_notional": 10_000,
+        "max_open_orders": 10, "max_daily_loss": 500,
+    }
     if HAS_GROSS:
         base["max_gross_notional"] = 30_000
     base.update(kw)

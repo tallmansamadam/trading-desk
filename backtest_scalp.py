@@ -128,7 +128,7 @@ def report(symbol, params, trades, bars, target_bp, stop_bp, spread_bp, max_hold
         per_year = len(trades) / max(sessions, 1) * 252
         print(f"  Sharpe (ann.)     {mean/sd*math.sqrt(per_year):.2f}")
     print(f"  avg hold          {statistics.mean([t['held'] for t in trades]):.1f} bars")
-    print(f"  exits             " + "  ".join(f"{k}={v}" for k, v in sorted(reasons.items())))
+    print("  exits             " + "  ".join(f"{k}={v}" for k, v in sorted(reasons.items())))
     print()
     gross = mean + spread_bp
     print(f"  gross edge before spread  {gross:+.3f} bp")

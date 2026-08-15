@@ -26,7 +26,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Windows consoles default to cp1252, which cannot encode characters the risk
@@ -77,7 +77,7 @@ def fetch(symbol: str, rng: str, interval: str, retries: int = 3) -> list[dict]:
             continue
         rows.append(
             {
-                "date": datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d"),
+                "date": datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d"),
                 "open": quote.get("open", [None] * len(stamps))[i],
                 "high": quote.get("high", [None] * len(stamps))[i],
                 "low": quote.get("low", [None] * len(stamps))[i],

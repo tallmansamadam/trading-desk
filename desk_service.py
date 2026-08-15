@@ -24,17 +24,17 @@ before they settle would double up on positions that are already arriving.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 import threading
 import time
 import webbrowser
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from trading import risk
 from trading.brokers.alpaca import AlpacaBroker, AlpacaError
 from trading.config import HALT_FILE, load_settings, trading_halted
 
@@ -52,7 +52,7 @@ DEFAULT_UNIVERSE = ["SPY", "QQQ", "IWM", "EFA", "EEM", "TLT",
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class ServiceState:
@@ -67,10 +67,8 @@ class ServiceState:
         self.load()
 
     def load(self) -> None:
-        try:
+        with contextlib.suppress(FileNotFoundError, ValueError):
             self.data.update(json.loads(self.path.read_text(encoding="utf-8")))
-        except (FileNotFoundError, ValueError):
-            pass
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -103,6 +101,7 @@ class Service:
     def _make_allocator(self):
         """Reuse run_desk.Allocator as the strategy; the service owns timing."""
         import types
+
         import run_desk
         run_desk.LOG_DIR = LOG_DIR
         alloc_args = types.SimpleNamespace(

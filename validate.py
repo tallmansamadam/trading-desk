@@ -134,7 +134,7 @@ def gate_out_of_sample(module, universe, params, cost_bps):
     if len(oos_d) < 5:
         return INSUF, f"only {len(oos_d)} symbols long enough to split", None
     mi, _, _ = t_stat(is_d)
-    mo, seo, to = t_stat(oos_d)
+    mo, _seo, to = t_stat(oos_d)
     detail = f"in-sample delta {mi:+.3f} -> out-of-sample {mo:+.3f} (t {to:.2f})"
     if mo <= 0:
         return FAIL, detail + " — the edge does not survive the split", None

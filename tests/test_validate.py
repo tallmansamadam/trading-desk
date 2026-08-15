@@ -9,24 +9,29 @@ that matters most in practice: INSUFFICIENT must never be treated as a pass.
 
 from __future__ import annotations
 
-import math
-import statistics
 import sys
-import types
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import validate
-from validate import (FAIL, INSUF, PASS, buy_hold, curve_stats,
-                      gate_generalisation, gate_risk_matched, t_stat)
+from validate import (
+    FAIL,
+    INSUF,
+    PASS,
+    buy_hold,
+    curve_stats,
+    gate_generalisation,
+    gate_risk_matched,
+    t_stat,
+)
 
 
 def synthetic(n=800, drift=0.0004, vol=0.01, seed=7):
     """Deterministic pseudo-random walk — no Random() so runs are reproducible."""
     px, out, x = 100.0, [100.0], seed
-    for i in range(n):
+    for _i in range(n):
         x = (1103515245 * x + 12345) % (2 ** 31)
         shock = ((x / 2 ** 31) - 0.5) * 2 * vol
         px *= 1 + drift + shock

@@ -1,0 +1,52 @@
+[project]
+name = "trading-desk"
+version = "0.1.0"
+description = "Paper-trading system with a hard risk engine and a strategy validator that rejects"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "ib_async>=1.0.3,<3",
+]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.6"]
+
+[project.scripts]
+trading-desk = "desk_service:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["data", "logs"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "W",    # warnings
+    "I",    # import sorting
+    "UP",   # pyupgrade
+    "B",    # bugbear
+    "C4",   # comprehensions
+    "SIM",  # simplify
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",    # long lines: the tables and messages read better intact
+    "B008",    # function calls in defaults: argparse patterns
+    "SIM108",  # ternaries are not always clearer
+    "RUF001",  # unicode in strings is deliberate (PETSCII, box drawing)
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test fakes deliberately mirror broker shapes rather than minimal interfaces.
+"tests/*" = ["B008", "SIM117"]
+# The lookahead control cheats on purpose; that is its entire function.
+"strategies/_control_lookahead.py" = ["ARG001"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

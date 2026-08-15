@@ -65,8 +65,8 @@ def make_broker(mode="paper", responses=None, **extra):
 
 
 def settings(**kw):
-    base = dict(mode="paper", max_order_notional=5_000,
-                max_position_notional=10_000, max_open_orders=10, max_daily_loss=500)
+    base = {"mode": "paper", "max_order_notional": 5_000,
+                "max_position_notional": 10_000, "max_open_orders": 10, "max_daily_loss": 500}
     if hasattr(Settings(), "max_gross_notional"):
         base["max_gross_notional"] = 70_000
     base.update(kw)

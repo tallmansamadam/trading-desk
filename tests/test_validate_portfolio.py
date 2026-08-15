@@ -17,8 +17,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import portfolios.equal_weight as ew
 import validate_portfolio as vp
-from validate_portfolio import (FAIL, INSUF, PASS, curve_stats, run_portfolio,
-                                gate_beats_equal_weight, gate_not_one_asset)
+from validate_portfolio import (
+    FAIL,
+    INSUF,
+    gate_beats_equal_weight,
+    gate_not_one_asset,
+    run_portfolio,
+)
 
 
 def ramp(n, rate):
@@ -32,7 +37,7 @@ def ramp(n, rate):
 def wobble(n, amp, seed=1):
     """Deterministic alternating series — no RNG, so results are reproducible."""
     px, out, x = 100.0, [100.0], seed
-    for i in range(n):
+    for _i in range(n):
         x = (1103515245 * x + 12345) % (2 ** 31)
         px *= 1 + amp * (1 if (x >> 16) % 2 else -1)
         out.append(px)
@@ -107,7 +112,7 @@ class TestGates(unittest.TestCase):
             self.assertAlmostEqual(d, 0.0, places=9)
 
     def test_tiny_universe_is_insufficient_not_pass(self):
-        small = {k: v for k, v in list(self.closes.items())[:3]}
+        small = dict(list(self.closes.items())[:3])
         verdict, detail, _ = gate_beats_equal_weight(
             ew, small, dict(ew.PARAMS), 5.0)
         self.assertEqual(verdict, INSUF, detail)

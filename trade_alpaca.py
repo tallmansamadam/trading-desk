@@ -157,7 +157,7 @@ def main() -> None:
                   f"avgFillPrice={s.avgFillPrice:.2f}")
         print(f"Order sent [ALPACA {settings.mode.upper()}] {args.side.upper()} "
               f"{args.quantity} {args.symbol.upper()} "
-              f"{'@ %.2f LMT' % args.limit if args.limit else 'MKT'} "
+              f"{f'@ {args.limit:.2f} LMT' if args.limit else 'MKT'} "
               f"tif={args.tif} | id={trade.order.orderId} "
               f"status={s.status} | {detail}")
 

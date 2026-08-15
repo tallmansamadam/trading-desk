@@ -1,0 +1,113 @@
+name: tests
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: unit tests (${{ matrix.os }} / py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # The suite must not need network, credentials or a broker. Anything that
+      # does is stubbed; if a test starts reaching out, this job is where it
+      # shows up rather than in production.
+      - name: unit tests
+        env:
+          TRADING_MODE: paper
+          ALPACA_API_KEY: ""
+          ALPACA_SECRET_KEY: ""
+        run: python -m unittest discover tests -v
+
+  lint:
+    name: lint and format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ruff
+      # Lint only. Formatting is hand-maintained: several risk reports and
+      # comparison tables are aligned deliberately, and a formatter would
+      # unpick them for no correctness gain.
+      - name: ruff check
+        run: ruff check .
+
+  guardrails:
+    name: risk-control guardrails
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # These are the invariants that make the rest of the system trustworthy.
+      # A change that breaks one should fail loudly in CI, not be discovered
+      # by an agent quietly raising its own limit.
+      - name: secrets are not committed
+        run: |
+          if git ls-files | grep -qx '.env'; then
+            echo "::error::.env is tracked — it holds credentials and limits"; exit 1
+          fi
+          if git log -p --all | grep -qE '\b(PK|AK)[A-Z0-9]{16,}\b'; then
+            echo "::error::a broker key appears in git history"; exit 1
+          fi
+          echo "clean"
+
+      - name: risk files are protected from agents
+        run: |
+          python - <<'EOF'
+          import json, pathlib, sys
+          cfg = json.loads(pathlib.Path(".claude/settings.json").read_text())
+          deny = set(cfg["permissions"]["deny"])
+          required = {
+              "Read(./.env)", "Edit(./.env)", "Write(./.env)",
+              "Edit(./trading/risk.py)", "Write(./trading/risk.py)",
+              "Edit(./trading/config.py)", "Write(./trading/config.py)",
+          }
+          missing = required - deny
+          if missing:
+              print(f"::error::deny rules removed: {sorted(missing)}")
+              sys.exit(1)
+          hook = pathlib.Path(".claude/hooks/guard_risk_files.py")
+          if not hook.exists():
+              print("::error::the shell-path guard hook is gone")
+              sys.exit(1)
+          print("risk-control guardrails intact")
+          EOF
+
+      - name: live trading cannot be enabled by default
+        run: |
+          python - <<'EOF'
+          import re, pathlib, sys
+          cfg = pathlib.Path("trading/config.py").read_text()
+          if not re.search(r'TRADING_MODE",\s*"paper"', cfg):
+              print("::error::TRADING_MODE no longer defaults to paper"); sys.exit(1)
+          for name in ("run_desk.py", "desk_service.py"):
+              src = pathlib.Path(name).read_text()
+              if "settings.is_live" not in src or "REFUSED" not in src:
+                  print(f"::error::{name} lost its live-mode refusal"); sys.exit(1)
+          print("paper-by-default and unattended live refusal intact")
+          EOF

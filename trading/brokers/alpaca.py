@@ -27,14 +27,15 @@ where one TWS can serve both and only the account prefix distinguishes them.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 PAPER_BASE = "https://paper-api.alpaca.markets"
 LIVE_BASE = "https://api.alpaca.markets"
@@ -154,10 +155,8 @@ class AlpacaBroker:
                 return json.loads(raw) if raw.strip() else {}
         except urllib.error.HTTPError as exc:
             detail = ""
-            try:
+            with contextlib.suppress(Exception):
                 detail = json.loads(exc.read().decode()).get("message", "")
-            except Exception:
-                pass
             if exc.code in (401, 403):
                 raise AlpacaError(
                     f"Alpaca rejected the credentials ({exc.code}). "
@@ -460,7 +459,7 @@ class AlpacaBroker:
         stale data that still looks like a valid response.
         """
         start = (
-            datetime.now(timezone.utc).date()
+            datetime.now(UTC).date()
             - timedelta(days=self._lookback_days(timeframe, limit))
         ).isoformat()
         sym = symbol.upper()

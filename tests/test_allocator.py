@@ -8,12 +8,11 @@ the slicing so that cannot come back.
 
 from __future__ import annotations
 
-import json
 import sys
 import types
 import unittest
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -95,9 +94,9 @@ SETTINGS = Settings(mode="paper", max_order_notional=5_000,
 
 
 def make_args(symbols, **kw):
-    base = dict(symbols=symbols, invested=100.0, rebalance_days=21,
-                drift_pct=25.0, min_trade=200.0, once=True, arm=False,
-                interval=1.0)
+    base = {"symbols": symbols, "invested": 100.0, "rebalance_days": 21,
+            "drift_pct": 25.0, "min_trade": 200.0, "once": True, "arm": False,
+            "interval": 1.0}
     base.update(kw)
     return types.SimpleNamespace(**base)
 
@@ -131,7 +130,7 @@ class TestSizing(unittest.TestCase):
     def test_per_symbol_is_capped_by_position_limit(self):
         """Four names would be $17.5k each; the per-symbol cap is $10k."""
         a = build(FakeBroker(equity=100_000), ["A", "B", "C", "D"], self.tmp)
-        _, per = a.budget()
+        a.budget()
         a2 = build(FakeBroker(equity=100_000), ["A", "B", "C", "D", "E", "F", "G",
                                                 "H", "I", "J", "K", "L"], self.tmp)
         _, per2 = a2.budget()
@@ -160,18 +159,18 @@ class TestSlicing(unittest.TestCase):
     def test_no_order_exceeds_the_order_cap(self):
         """The bug that made the first version reject every single order."""
         syms = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
-        broker = FakeBroker(equity=100_000, prices={s: 100.0 for s in syms})
+        broker = FakeBroker(equity=100_000, prices=dict.fromkeys(syms, 100.0))
         a = build(broker, syms, self.tmp, arm=True)
         a.rebalance()
         self.assertTrue(broker.sent, "expected orders")
-        for sym, side, qty, limit in broker.sent:
+        for sym, _side, qty, _limit in broker.sent:
             notional = qty * 100.0
             self.assertLessEqual(notional, SETTINGS.max_order_notional,
                                  f"{sym} order of ${notional:,.0f} exceeds the cap")
 
     def test_open_order_cap_throttles_the_pass(self):
         syms = [chr(65 + i) for i in range(12)]
-        broker = FakeBroker(equity=100_000, prices={s: 100.0 for s in syms},
+        broker = FakeBroker(equity=100_000, prices=dict.fromkeys(syms, 100.0),
                             open_orders=8)
         a = build(broker, syms, self.tmp, arm=True)
         a.rebalance()
@@ -180,7 +179,7 @@ class TestSlicing(unittest.TestCase):
     def test_partial_pass_does_not_bank_the_rebalance_date(self):
         """Banking it early would strand the remainder until the next cadence."""
         syms = [chr(65 + i) for i in range(12)]
-        broker = FakeBroker(equity=100_000, prices={s: 100.0 for s in syms})
+        broker = FakeBroker(equity=100_000, prices=dict.fromkeys(syms, 100.0))
         a = build(broker, syms, self.tmp, arm=True)
         a.rebalance()
         self.assertIsNone(a.state.get("last_rebalance"),
@@ -189,8 +188,8 @@ class TestSlicing(unittest.TestCase):
     def test_tiny_adjustments_are_skipped(self):
         syms = ["A", "B", "C", "D", "E", "F", "G"]
         per = 70_000 / 7
-        broker = FakeBroker(equity=100_000, prices={s: 100.0 for s in syms},
-                            holdings={s: per for s in syms})
+        broker = FakeBroker(equity=100_000, prices=dict.fromkeys(syms, 100.0),
+                            holdings=dict.fromkeys(syms, per))
         a = build(broker, syms, self.tmp, arm=True)
         a.rebalance()
         self.assertEqual(broker.sent, [], "an in-balance book should not trade")
@@ -202,7 +201,7 @@ class TestCadence(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.syms = ["A", "B", "C", "D"]
         self.broker = FakeBroker(equity=100_000,
-                                 prices={s: 100.0 for s in self.syms})
+                                 prices=dict.fromkeys(self.syms, 100.0))
 
     def test_first_run_is_always_due(self):
         a = build(self.broker, self.syms, self.tmp)
@@ -225,7 +224,7 @@ class TestCadence(unittest.TestCase):
 
     def test_drift_triggers_early(self):
         """One holding way off target should not wait for the calendar."""
-        broker = FakeBroker(equity=100_000, prices={s: 100.0 for s in self.syms},
+        broker = FakeBroker(equity=100_000, prices=dict.fromkeys(self.syms, 100.0),
                             holdings={"A": 1.0, "B": 17_500, "C": 17_500, "D": 17_500})
         a = build(broker, self.syms, self.tmp)
         a.state["last_rebalance"] = (date.today() - timedelta(days=2)).isoformat()

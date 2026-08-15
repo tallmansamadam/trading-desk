@@ -1,8 +1,28 @@
 {
-  "armed": true,
+  "armed": false,
   "last_rebalance": null,
-  "last_action": "ARM: service will rebalance automatically",
+  "last_action": "FLATTEN: closed 0 position(s)",
   "events": [
+    {
+      "ts": "2026-08-15T20:14:02Z",
+      "kind": "FLATTEN",
+      "detail": "closed 0 position(s)"
+    },
+    {
+      "ts": "2026-08-15T20:13:59Z",
+      "kind": "HALT",
+      "detail": "kill switch engaged \u2014 no new entries"
+    },
+    {
+      "ts": "2026-08-15T20:13:58Z",
+      "kind": "HALT",
+      "detail": "kill switch engaged \u2014 no new entries"
+    },
+    {
+      "ts": "2026-08-15T20:13:48Z",
+      "kind": "DISARM",
+      "detail": "service will watch but not trade"
+    },
     {
       "ts": "2026-08-15T20:06:34Z",
       "kind": "ARM",
