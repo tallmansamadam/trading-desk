@@ -406,14 +406,33 @@ class Allocator:
 
     # -- execution ----------------------------------------------------------
 
+    def pending_symbols(self) -> set:
+        """Symbols with an order already working.
+
+        current_values() reads FILLED positions, so a resting order is
+        invisible to the sizing maths. Left alone, an unattended loop sees the
+        same shortfall on every pass and stacks a duplicate order each time.
+        Anything already in flight is therefore skipped until it fills or
+        expires."""
+        try:
+            return {t.contract.symbol for t in self.b.reqAllOpenOrders()}
+        except AlpacaError:
+            return set()          # unknown: fall through to the open-order cap
+
     def rebalance(self) -> None:
         gross, per = self.budget()
         held = self.current_values()
+        pending = self.pending_symbols()
+        if pending:
+            self.journal.write("IN-FLIGHT", detail=f"skipping {len(pending)} name(s) "
+                               f"with working orders: {' '.join(sorted(pending))}")
         self.journal.write("PLAN", detail=f"{len(self.symbols)} names, "
                            f"${per:,.0f} each, ${gross:,.0f} gross")
 
         orders = []
         for sym in self.symbols:
+            if sym in pending:
+                continue
             try:
                 px = self.b.reference_price(sym)
             except AlpacaError as exc:
@@ -435,7 +454,8 @@ class Allocator:
             orders.append((sym, "BUY" if delta_usd > 0 else "SELL", qty, px, partial))
 
         if not orders:
-            self.journal.write("IN-BALANCE", detail="nothing exceeds the trade floor")
+            self.journal.write("IN-BALANCE", detail="nothing exceeds the trade floor"
+                               + (f" ({len(pending)} still in flight)" if pending else ""))
             return
 
         # Sells first. They free buying power and reduce gross, so a later buy
@@ -449,9 +469,10 @@ class Allocator:
         except AlpacaError:
             already = 0
         budget = max(0, self.s.max_open_orders - already - 1)
-        if len(orders) > budget:
+        throttled = max(0, len(orders) - budget)
+        if throttled:
             self.journal.write("THROTTLE", detail=f"{len(orders)} adjustments needed, "
-                               f"{budget} order slots free — the rest follow next pass")
+                               f"{budget} order slot(s) free — {throttled} follow next pass")
             orders = orders[:budget]
 
         sent = deferred = 0
@@ -484,13 +505,20 @@ class Allocator:
 
         # Only bank the rebalance date once the book is actually at target.
         # Recording it after a sliced pass would stop the remainder ever going.
-        if deferred == 0:
+        if deferred == 0 and not pending:
             self.state["last_rebalance"] = datetime.now(timezone.utc).date().isoformat()
             self._save_state()
+        outstanding = []
+        if deferred:
+            outstanding.append(f"{deferred} sliced target(s)")
+        if pending:
+            outstanding.append(f"{len(pending)} order(s) in flight")
+        if throttled:
+            outstanding.append(f"{throttled} adjustment(s) throttled")
         self.journal.write("REBALANCED", detail=f"{sent} order(s) "
                            f"{'sent' if self.a.arm else 'simulated'}"
-                           + (f", {deferred} partially filled target(s) resume next pass"
-                              if deferred else ", book at target"))
+                           + (", still to do: " + ", ".join(outstanding)
+                              if outstanding else ", book at target"))
 
     def run(self) -> None:
         gross, per = self.budget()

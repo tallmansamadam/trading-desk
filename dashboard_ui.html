@@ -103,6 +103,30 @@ button.on{background:var(--cyn);color:#000;border-color:var(--cyn)}
 input{width:74px;cursor:text;color:var(--wht)}
 .hint{color:var(--border);font-size:11px;margin-top:6px}
 #err{color:var(--lrd);margin-top:8px;text-transform:none}
+/* control panel */
+#ctlpanel{position:relative;border:2px solid var(--border);padding:12px 12px 10px;margin-top:14px}
+#ctlpanel > .cap{position:absolute;top:-9px;left:9px;background:var(--screen);
+  padding:0 6px;color:var(--cyn);font-size:12px}
+.ctlrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ctlrow + .ctlrow{margin-top:9px}
+button.act{padding:4px 14px;border-width:2px}
+button.go{border-color:var(--lgn);color:var(--lgn)}
+button.go:hover{background:var(--lgn);color:#000}
+button.warn{border-color:var(--yel);color:var(--yel)}
+button.warn:hover{background:var(--yel);color:#000}
+button.danger{border-color:var(--lrd);color:var(--lrd)}
+button.danger:hover{background:var(--lrd);color:#000}
+button:disabled{opacity:.35;cursor:not-allowed}
+button:disabled:hover{background:var(--screen);color:inherit}
+#armstate{padding:3px 12px;border:2px solid;font-size:13px}
+#armstate.on{border-color:var(--lgn);color:#000;background:var(--lgn)}
+#armstate.off{border-color:var(--border);color:var(--border)}
+#halted.on{border-color:var(--lrd);color:#000;background:var(--lrd);
+  padding:3px 12px;border:2px solid;font-size:13px}
+#ctlmsg{margin-top:9px;min-height:17px;text-transform:none}
+#events{margin-top:10px;font-size:12px;max-height:132px;overflow-y:auto}
+#events div{color:var(--border)}
+#events b{color:var(--cyn);font-weight:700}
 </style></head><body>
 <div id="screen">
 
@@ -143,6 +167,27 @@ input{width:74px;cursor:text;color:var(--wht)}
   <div class="grid" style="margin-top:14px">
     <div class="panel"><span class="cap">POSITIONS</span><table id="pos"></table></div>
     <div class="panel"><span class="cap">OPEN ORDERS</span><table id="ord"></table></div>
+  </div>
+
+  <div id="ctlpanel">
+    <span class="cap">CONTROLS</span>
+    <div class="ctlrow">
+      <span class="k">AUTO-TRADE</span>
+      <span id="armstate" class="off">DISARMED</span>
+      <button class="act go"     id="c_arm">ARM</button>
+      <button class="act"        id="c_disarm">DISARM</button>
+      <span class="k">&nbsp;&nbsp;KILL SWITCH</span>
+      <button class="act danger" id="c_halt">HALT</button>
+      <button class="act"        id="c_resume">RESUME</button>
+    </div>
+    <div class="ctlrow">
+      <button class="act warn"   id="c_rebalance">REBALANCE NOW</button>
+      <button class="act"        id="c_cancel">CANCEL ALL ORDERS</button>
+      <button class="act danger" id="c_flatten">FLATTEN EVERYTHING</button>
+      <span class="k" id="nextopen"></span>
+    </div>
+    <div id="ctlmsg"></div>
+    <div id="events"></div>
   </div>
 
   <div class="dim" id="rule2"></div>
@@ -247,6 +292,8 @@ function render(d){
   const a = d.account||{}, L = d.limits||{};
   $('#modeline').innerHTML = `<span class="cy">${d.mode}</span> &middot; `
     + `${a.market_open ? '<span class="gn">MARKET OPEN</span>' : '<span class="k">MARKET CLOSED</span>'}`
+    + (d.armed ? ' &middot; <span class="gn glow">AUTO-TRADE ARMED</span>'
+               : ' &middot; <span class="k">AUTO-TRADE OFF</span>')
     + (d.halted ? ' &middot; <span class="rd glow">HALTED</span>' : '');
 
   $('#acct').innerHTML =
@@ -279,6 +326,25 @@ function render(d){
     + `<div class="${cls(gPct)}">${gauge(gPct)} ${gPct.toFixed(0)}%</div>`
     + `<div class="k" style="margin-top:4px">LOSS USED</div>`
     + `<div class="${cls(lPct)}">${gauge(lPct)} ${lPct.toFixed(0)}%</div>`;
+
+  // control panel state
+  const arm = $('#armstate');
+  if(arm){
+    const on = !!d.armed;
+    arm.className = on ? 'on' : 'off';
+    arm.textContent = on ? 'ARMED' : 'DISARMED';
+    $('#c_arm').disabled = on;
+    $('#c_disarm').disabled = !on;
+    $('#c_halt').disabled = !!d.halted;
+    $('#c_resume').disabled = !d.halted;
+    $('#c_rebalance').disabled = !on || !!d.halted;
+    $('#nextopen').textContent = d.account && d.account.market_open
+      ? 'MARKET OPEN' : (d.next_open ? 'NEXT OPEN ' + d.next_open + ' ET' : '');
+    const ev = d.events || [];
+    $('#events').innerHTML = ev.length
+      ? ev.map(e=>`<div>${e.ts.slice(11,19)} <b>${e.kind}</b> ${e.detail}</div>`).join('')
+      : '<div>NO SERVICE EVENTS YET.</div>';
+  }
 
   const P = d.positions||[];
   $('#pos').innerHTML = P.length
@@ -475,6 +541,40 @@ $('#sym').addEventListener('keydown', e=>{ if(e.key==='Enter') loadBars(); });
 document.querySelectorAll('.tf').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tf').forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); tf = b.dataset.tf; loadBars();
+});
+
+/* ---- controls ---------------------------------------------------------
+   Risk-INCREASING actions confirm; de-risking ones (halt, cancel, flatten) go
+   straight through. Making someone click twice to reduce risk is how a kill
+   switch fails when it matters.                                            */
+const CONFIRM = {
+  arm: 'ARM AUTO-TRADE?\n\nThe service will place paper orders on its own '
+     + 'schedule, without asking again.',
+  rebalance: 'REBALANCE NOW?\n\nThis places orders immediately.',
+};
+async function control(action, btn){
+  if(CONFIRM[action] && !window.confirm(CONFIRM[action])) return;
+  const msg = $('#ctlmsg');
+  msg.innerHTML = '<span class="ye">WORKING...</span>';
+  if(btn) btn.disabled = true;
+  try{
+    const r = await fetch('/api/control', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action})});
+    const d = await r.json();
+    msg.innerHTML = `<span class="${d.ok?'gn':'rd'}">${d.ok?'OK':'REFUSED'}</span> ${d.msg}`;
+  }catch(e){
+    msg.innerHTML = '<span class="rd">FAILED</span> the service did not answer';
+  }finally{
+    if(btn) btn.disabled = false;
+    poll();
+  }
+}
+[['c_arm','arm'],['c_disarm','disarm'],['c_halt','halt'],['c_resume','resume'],
+ ['c_rebalance','rebalance'],['c_cancel','cancel_all'],['c_flatten','flatten']
+].forEach(([id, action])=>{
+  const b = document.getElementById(id);
+  if(b) b.onclick = () => control(action, b);
 });
 
 const relayout = ()=>{ rule($('#rule1')); rule($('#rule2')); sizeCanvas(); };

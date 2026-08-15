@@ -1,0 +1,32 @@
+{
+  "armed": true,
+  "last_rebalance": null,
+  "last_action": "ARM: service will rebalance automatically",
+  "events": [
+    {
+      "ts": "2026-08-15T20:06:34Z",
+      "kind": "ARM",
+      "detail": "service will rebalance automatically"
+    },
+    {
+      "ts": "2026-08-15T20:01:42Z",
+      "kind": "DISARM",
+      "detail": "service will watch but not trade"
+    },
+    {
+      "ts": "2026-08-15T20:01:42Z",
+      "kind": "ARM",
+      "detail": "service will rebalance automatically"
+    },
+    {
+      "ts": "2026-08-15T20:01:42Z",
+      "kind": "RESUME",
+      "detail": "kill switch cleared"
+    },
+    {
+      "ts": "2026-08-15T20:01:42Z",
+      "kind": "HALT",
+      "detail": "kill switch engaged \u2014 no new entries"
+    }
+  ]
+}

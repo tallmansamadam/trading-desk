@@ -60,7 +60,10 @@ class FakeBroker:
         return []
 
     def reqAllOpenOrders(self):
-        return [object()] * self._open
+        # Order-shaped, because the allocator reads .contract.symbol off these
+        # to work out what is already in flight.
+        return [types.SimpleNamespace(contract=C(f"OPEN{i}"))
+                for i in range(self._open)]
 
     def reqPnL(self, account="", modelCode=""):
         return types.SimpleNamespace(dailyPnL=0.0, unrealizedPnL=0.0, realizedPnL=0.0)

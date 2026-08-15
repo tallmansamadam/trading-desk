@@ -19,8 +19,12 @@ param(
     [ValidateRange(0.0, 720.0)]
     [Nullable[double]] $Hours,
 
-    [Parameter(Mandatory)]
+    # One or more prompts sent in order after waking. Supply these, or -MessageFile.
     [string[]] $Message,
+
+    # Alternative to -Message: a text file with one prompt per line (blank lines ignored).
+    # This is how the GUI hands prompts to the worker, sidestepping CLI array quoting.
+    [string] $MessageFile,
 
     # Continue = resume the most recent session in -Cwd; New = fresh session;
     # Resume = resume the specific session named by -SessionId.
@@ -41,6 +45,17 @@ $ErrorActionPreference = 'Stop'
 
 if ($Mode -eq 'Resume' -and -not $SessionId) {
     throw "-Mode Resume requires -SessionId."
+}
+
+# Prompts can come from -Message or from a -MessageFile (one per line).
+if ($MessageFile) {
+    if (-not (Test-Path -LiteralPath $MessageFile)) {
+        throw "MessageFile not found: $MessageFile"
+    }
+    $Message = Get-Content -LiteralPath $MessageFile | Where-Object { $_.Trim() -ne '' }
+}
+if (-not $Message -or $Message.Count -eq 0) {
+    throw "No prompts given. Pass -Message '...' or -MessageFile <path>."
 }
 
 # Parse a human duration ("3h", "30m", "1.5h", "90" = minutes... no, plain = hours) into hours.
