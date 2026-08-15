@@ -16,7 +16,7 @@ html{background:#241a52}
 body{
   background:var(--border); min-height:100vh; padding:14px;
   font-family:'Cascadia Mono',Consolas,'Courier New',monospace;
-  font-weight:700; font-size:13px; line-height:16px;   /* locked to the grid */
+  font-weight:700; font-size:13.5px; line-height:17px;   /* locked to the grid */
   letter-spacing:.5px; text-transform:uppercase; color:var(--lgy);
 }
 
@@ -32,10 +32,10 @@ body{
 #screen::after{
   content:''; position:absolute; inset:0; pointer-events:none; border-radius:4px;
   background:
-    repeating-linear-gradient(to bottom, rgba(0,0,0,.20) 0 1px, rgba(0,0,0,0) 1px 3px),
+    repeating-linear-gradient(to bottom, rgba(0,0,0,.10) 0 1px, rgba(0,0,0,0) 1px 3px),
     radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.42) 100%);
 }
-.glow{text-shadow:0 0 5px currentColor}
+.glow{text-shadow:0 0 6px rgba(170,255,238,.35)}
 
 /* ---- boot overlay ----------------------------------------------------- */
 #boot{
@@ -89,8 +89,7 @@ th.n{text-align:right}
 #chartbox > .cap{position:absolute;top:-9px;left:9px;background:var(--screen);
   padding:0 6px;color:var(--cyn);font-size:12px}
 canvas{
-  display:block; width:100%; height:auto; background:var(--blk);
-  image-rendering:pixelated; image-rendering:crisp-edges;
+  display:block; width:100%; height:340px; background:var(--blk);
   cursor:crosshair; touch-action:none;
 }
 .ctl{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:4px 0 8px}
@@ -137,7 +136,8 @@ input{width:74px;cursor:text;color:var(--wht)}
       <span class="k" id="zinfo"></span>
     </div>
     <canvas id="chart" width="320" height="140"></canvas>
-    <div class="hint">WHEEL ZOOM &middot; DRAG PAN &middot; SHIFT-DRAG BOX &middot; DBL-CLICK RESET</div>
+    <div class="hint">WHEEL ZOOM &middot; DRAG PAN &middot; SHIFT-DRAG BOX &middot; DBL-CLICK RESET
+      &middot; INTRADAY TIMES ARE LOCAL</div>
   </div>
 
   <div class="grid" style="margin-top:14px">
@@ -160,6 +160,20 @@ const cell = (key, html, cls) => {
   return `<td class="${cls||'v'} ${ch?'fl':''}">${html}</td>`;
 };
 const rule = el => { el.textContent = '─'.repeat(Math.max(20, Math.floor(el.clientWidth/7.6))); };
+/* Timestamps arrive as UTC, and the two bar types need OPPOSITE treatment.
+
+   Intraday: convert to local. A trader reads 09:30 as the opening bell;
+   13:30Z is accurate and useless.
+
+   Daily: do NOT convert. Alpaca stamps a daily bar at ~04:00Z, so west of
+   Greenwich a local conversion rolls it back a day and every date is wrong by
+   one. The date already in the UTC string IS the session date. */
+const isDaily = () => tf === '1Day';
+const sessionDate = t => t.slice(0, 10);                 // daily: already correct
+const localDate = t => { const d = new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const fmtTime = t => { const d = new Date(t);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
 const gauge = (pct, w=18) => {
   const f = Math.max(0, Math.min(w, Math.round(pct/100*w)));
   return '█'.repeat(f) + '░'.repeat(w-f);
@@ -284,10 +298,29 @@ function render(d){
     : `<tr><td class="k">NO OPEN ORDERS.</td></tr>`;
 }
 
-/* ---- chart, drawn at native C64 resolution --------------------------- */
-const CW = 320, CH = 140;          /* the canvas IS 320 px wide, like the machine */
+/* ---- chart -----------------------------------------------------------
+   Two concerns, deliberately separated. The canvas backing store runs at FULL
+   device resolution so axis labels are real glyphs at their real size — the
+   previous version drew 7px text into a 320px canvas and magnified it 3.14x,
+   which is why every number looked smeared. Only the TRACE is quantised, onto
+   a virtual 320-column grid, so it keeps the chunky VIC-II look without
+   dragging the text down with it.                                          */
+const VCOLS = 320;                    /* virtual columns for the blocky trace */
 const cv = $('#chart'), ctx = cv.getContext('2d');
 let bars = [], view = null, drag = null, hover = null, tf = '1Day';
+let W = 0, H = 0;                     /* CSS pixels, not device pixels        */
+const L = 6, R = 62, T = 10, B = 26;  /* plot margins, in CSS pixels          */
+
+function sizeCanvas(){
+  const r = cv.getBoundingClientRect();
+  if(r.width < 1 || r.height < 1) return;   // hidden pane: try again on resize
+  const dpr = window.devicePixelRatio || 1;
+  cv.width  = Math.round(r.width  * dpr);
+  cv.height = Math.round(r.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);   // draw in CSS px, render at device px
+  W = r.width; H = r.height;
+  draw();
+}
 
 async function loadBars(){
   const sym = ($('#sym').value.trim().toUpperCase()) || 'SPY';
@@ -304,89 +337,97 @@ function clampView(){
   if(view.b > bars.length-1){ const d = view.b-(bars.length-1); view.a -= d; view.b -= d; }
   view.a = Math.max(0, view.a); view.b = Math.min(bars.length-1, view.b);
 }
+const plotW = () => Math.max(1, W - L - R);
+const plotFrac = x => Math.max(0, Math.min(1, (x - L) / plotW()));
+
 function draw(){
-  ctx.fillStyle = '#000'; ctx.fillRect(0,0,CW,CH);
+  if(W < 1 || H < 1) return;
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
   if(!bars.length || !view){
-    ctx.fillStyle = '#7869C4'; ctx.font = '700 8px monospace';
-    ctx.fillText('NO BAR DATA - PRESS LOAD', 6, 14);
+    ctx.fillStyle = '#7869C4'; ctx.font = '700 13px Consolas,monospace';
+    ctx.fillText('NO BAR DATA - PRESS LOAD', L+4, T+16);
     $('#zinfo').textContent = ''; return;
   }
   clampView();
-  const L=2, R=36, T=4, B=12;
   const slice = bars.slice(Math.floor(view.a), Math.ceil(view.b)+1);
   let lo=Infinity, hi=-Infinity;
   for(const b of slice){ lo=Math.min(lo,b.l??b.c); hi=Math.max(hi,b.h??b.c); }
   if(!isFinite(lo)||!isFinite(hi)) return;
   const pd=(hi-lo)*0.08||1; lo-=pd; hi+=pd;
-  const X = i => L + (i-view.a)/(view.b-view.a)*(CW-L-R);
-  const Y = p => T + (hi-p)/(hi-lo)*(CH-T-B);
+  const X = i => L + (i-view.a)/(view.b-view.a) * plotW();
+  const Y = p => T + (hi-p)/(hi-lo) * (H-T-B);
 
-  ctx.font = '700 7px monospace'; ctx.lineWidth = 1;
-  /* dotted grid — dithered, the way a VIC-II would */
-  ctx.fillStyle = '#2a2065';
+  /* dotted grid, still dithered — but at real pixel pitch */
+  ctx.fillStyle = '#3b2f80';
   for(let k=0;k<=4;k++){
-    const yy = Math.round(Y(lo+(hi-lo)*k/4)) + .5;
-    for(let x=L; x<CW-R; x+=2) ctx.fillRect(x, yy-.5, 1, 1);
+    const yy = Math.round(Y(lo+(hi-lo)*k/4));
+    for(let x=L; x<W-R; x+=3) ctx.fillRect(x, yy, 2, 1);
   }
-  ctx.fillStyle = '#7869C4';
+  /* price axis — native-resolution text, properly sized */
+  ctx.font = '700 12px Consolas,"Cascadia Mono",monospace';
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#B8AEEE';
   for(let k=0;k<=4;k++){
-    const p = lo+(hi-lo)*k/4;
-    ctx.fillText(p.toFixed(2), CW-R+3, Math.round(Y(p))+2);
+    const pr = lo+(hi-lo)*k/4;
+    ctx.fillText(pr.toFixed(2), W-R+8, Y(pr));
   }
+  /* time axis */
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'center';
   const n = Math.floor(view.b)-Math.floor(view.a);
-  for(let k=0;k<=3;k++){
-    const i = Math.floor(view.a+n*k/3); if(!bars[i]) continue;
-    const lab = tf==='1Day' ? bars[i].t.slice(5,10) : bars[i].t.slice(11,16);
-    ctx.fillText(lab, Math.min(CW-R-20, Math.max(L, X(i)-9)), CH-3);
+  const ticks = W > 700 ? 5 : 3;
+  for(let k=0;k<=ticks;k++){
+    const i = Math.floor(view.a + n*k/ticks); if(!bars[i]) continue;
+    const lab = isDaily() ? sessionDate(bars[i].t) : fmtTime(bars[i].t);
+    ctx.fillText(lab, Math.min(W-R-26, Math.max(L+26, X(i))), H-8);
   }
-  /* The trace, plotted a pixel at a time.
-     A stroked path gets anti-aliased into a soft grey smear at 320px, which is
-     precisely the look this whole canvas exists to avoid. Walking one screen
-     column at a time and filling the vertical run between samples gives the
-     hard-edged single-pixel line a VIC-II would actually produce. */
+
+  /* the trace: quantised to VCOLS so it stays blocky, drawn at full res */
   ctx.fillStyle = '#AAFFEE';
+  const colW = plotW()/VCOLS, step = Math.max(1, colW);
   let prevY = null;
-  for(let px = L; px < CW-R; px++){
-    const f = (px-L)/(CW-L-R);
-    const idx = Math.round(view.a + f*(view.b-view.a));
-    const b = bars[Math.max(0, Math.min(bars.length-1, idx))];
+  for(let c=0;c<VCOLS;c++){
+    const idx = Math.round(view.a + (c/VCOLS)*(view.b-view.a));
+    const b = bars[Math.max(0,Math.min(bars.length-1,idx))];
     if(!b) continue;
-    const y = Math.round(Y(b.c));
-    if(prevY === null) ctx.fillRect(px, y, 1, 1);
-    else { const a = Math.min(prevY,y), z = Math.max(prevY,y); ctx.fillRect(px, a, 1, z-a+1); }
+    const x = L + c*colW, y = Math.round(Y(b.c));
+    if(prevY === null) ctx.fillRect(x, y, step, 2);
+    else { const a=Math.min(prevY,y), z=Math.max(prevY,y); ctx.fillRect(x, a, step, z-a+2); }
     prevY = y;
   }
   const li = Math.min(Math.ceil(view.b), bars.length-1);
-  ctx.fillStyle = '#EEEE77'; ctx.fillRect(Math.round(X(li))-1, Math.round(Y(bars[li].c))-1, 3, 3);
+  ctx.fillStyle = '#EEEE77'; ctx.fillRect(X(li)-3, Y(bars[li].c)-3, 6, 6);
 
+  /* crosshair + readout, in legible type */
   if(hover !== null){
     const i = Math.round(view.a + plotFrac(hover)*(view.b-view.a));
     const b = bars[Math.max(0,Math.min(bars.length-1,i))];
     if(b){
       const px = Math.round(X(i));
-      ctx.fillStyle = '#DD8855';                       // dashed, plotted not stroked
-      for(let y=T; y<CH-B; y+=3) ctx.fillRect(px, y, 1, 2);
-      ctx.fillStyle = '#000'; ctx.fillRect(2,2,150,10);
-      ctx.fillStyle = '#EEEE77';
-      ctx.fillText(`${b.t.slice(0,16).replace('T',' ')} C${b.c.toFixed(2)}`, 4, 9);
+      ctx.fillStyle = '#DD8855';
+      for(let y=T; y<H-B; y+=6) ctx.fillRect(px, y, 1, 3);
+      const stamp = isDaily() ? sessionDate(b.t)
+                              : `${localDate(b.t)}  ${fmtTime(b.t)}`;
+      const txt = `${stamp}   O ${b.o.toFixed(2)}  H ${b.h.toFixed(2)}  `
+                + `L ${b.l.toFixed(2)}  C ${b.c.toFixed(2)}   V ${(b.v||0).toLocaleString()}`;
+      ctx.font = '700 12px Consolas,"Cascadia Mono",monospace';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      const w = ctx.measureText(txt).width + 14;
+      ctx.fillStyle = '#000';      ctx.fillRect(L, T, w, 22);
+      ctx.strokeStyle = '#DD8855'; ctx.lineWidth = 1;
+      ctx.strokeRect(L+.5, T+.5, w, 22);
+      ctx.fillStyle = '#EEEE77';   ctx.fillText(txt, L+7, T+12);
     }
   }
   if(drag && drag.box){
-    const x0 = Math.round(Math.min(drag.x0,drag.x1)), w = Math.round(Math.abs(drag.x1-drag.x0));
-    ctx.fillStyle = 'rgba(170,255,238,.20)'; ctx.fillRect(x0,T,w,CH-T-B);
-    ctx.fillStyle = '#AAFFEE';                        // 1px hard edges
-    ctx.fillRect(x0,T,1,CH-T-B); ctx.fillRect(x0+w-1,T,1,CH-T-B);
+    const x0 = Math.round(Math.min(drag.x0,drag.x1)), w = Math.abs(drag.x1-drag.x0);
+    ctx.fillStyle = 'rgba(170,255,238,.18)'; ctx.fillRect(x0,T,w,H-T-B);
+    ctx.fillStyle = '#AAFFEE';
+    ctx.fillRect(x0,T,2,H-T-B); ctx.fillRect(x0+w-2,T,2,H-T-B);
   }
   $('#zinfo').textContent = `${slice.length}/${bars.length} BARS`;
 }
-/* Pointer maths: CSS px -> the 320-wide canvas space, then -> a fraction of
-   the PLOT area (not the whole canvas, which includes the price gutter). */
-const PL = 2, PR = 36;
-const toCanvasX = clientX => {
-  const r = cv.getBoundingClientRect();
-  return (clientX - r.left) / r.width * CW;
-};
-const plotFrac = x => Math.max(0, Math.min(1, (x - PL) / (CW - PL - PR)));
+
+const toX = clientX => clientX - cv.getBoundingClientRect().left;   /* CSS px */
 function zoomAt(frac, factor){
   if(!view) return;
   const span = view.b-view.a, c = view.a + span*frac, ns = span*factor;
@@ -395,18 +436,18 @@ function zoomAt(frac, factor){
 }
 cv.addEventListener('wheel', e=>{
   e.preventDefault();
-  zoomAt(plotFrac(toCanvasX(e.clientX)), e.deltaY>0 ? 1.18 : 1/1.18);
+  zoomAt(plotFrac(toX(e.clientX)), e.deltaY>0 ? 1.18 : 1/1.18);
 },{passive:false});
 cv.addEventListener('mousedown', e=>{
-  const x = toCanvasX(e.clientX);
+  const x = toX(e.clientX);
   drag = {x0:x, x1:x, box:e.shiftKey, a:view?view.a:0, b:view?view.b:0};
 });
 window.addEventListener('mousemove', e=>{
   const r = cv.getBoundingClientRect();
   const inside = e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom;
-  hover = inside ? toCanvasX(e.clientX) : null;
+  hover = inside ? toX(e.clientX) : null;
   if(drag){
-    drag.x1 = toCanvasX(e.clientX);
+    drag.x1 = toX(e.clientX);
     if(!drag.box && view){
       const span = drag.b-drag.a;
       const dx = (plotFrac(drag.x1) - plotFrac(drag.x0)) * span;
@@ -416,14 +457,11 @@ window.addEventListener('mousemove', e=>{
   if(drag || inside) draw();
 });
 window.addEventListener('mouseup', ()=>{
-  if(drag && drag.box && view && Math.abs(drag.x1-drag.x0) > 4){
-    // Resolve against the window as it was when the drag STARTED, so the box
-    // maps to what the user actually saw under the cursor.
+  if(drag && drag.box && view && Math.abs(drag.x1-drag.x0) > 6){
     const a0 = drag.a, span = drag.b - drag.a;
     const f0 = plotFrac(Math.min(drag.x0, drag.x1));
     const f1 = plotFrac(Math.max(drag.x0, drag.x1));
-    view.a = a0 + span*f0;
-    view.b = a0 + span*f1;
+    view.a = a0 + span*f0; view.b = a0 + span*f1;
     clampView();
   }
   drag = null; draw();
@@ -439,11 +477,11 @@ document.querySelectorAll('.tf').forEach(b=>b.onclick=()=>{
   b.classList.add('on'); tf = b.dataset.tf; loadBars();
 });
 
-const relayout = ()=>{ rule($('#rule1')); rule($('#rule2')); };
+const relayout = ()=>{ rule($('#rule1')); rule($('#rule2')); sizeCanvas(); };
 window.addEventListener('resize', relayout);
 if(window.ResizeObserver) new ResizeObserver(relayout).observe(document.body);
 
-boot(); relayout(); loadBars(); poll();
+boot(); relayout(); sizeCanvas(); loadBars(); poll();
 setInterval(poll, 3000);
 setInterval(loadBars, 30000);
 </script></body></html>
