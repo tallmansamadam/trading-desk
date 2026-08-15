@@ -1,0 +1,45 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python trade.py status)",
+      "Bash(python trade.py quote:*)",
+      "Bash(python trade.py bars:*)",
+      "Bash(python trade.py positions)",
+      "Bash(python trade.py pnl)",
+      "Bash(python trade.py check:*)",
+      "Bash(python trade.py halt)",
+      "Bash(python backtest.py:*)"
+    ],
+    "ask": [
+      "Bash(python trade.py order:*)",
+      "Bash(python trade.py flatten:*)",
+      "Bash(python trade.py cancel-all)",
+      "Bash(python trade.py resume)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Edit(./.env)",
+      "Write(./.env)",
+      "Edit(./trading/risk.py)",
+      "Write(./trading/risk.py)",
+      "Edit(./trading/config.py)",
+      "Write(./trading/config.py)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "f=\"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/guard_risk_files.py\"; [ -f \"$f\" ] && python \"$f\" || exit 0",
+            "timeout": 10,
+            "statusMessage": "Checking risk-control files"
+          }
+        ]
+      }
+    ]
+  }
+}

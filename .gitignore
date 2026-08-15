@@ -1,0 +1,8 @@
+.env
+.env.ready
+HALT
+*.csv
+__pycache__/
+*.pyc
+.venv/
+sleeper.log
