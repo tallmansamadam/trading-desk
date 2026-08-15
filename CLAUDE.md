@@ -104,6 +104,31 @@ It must never appear in a live configuration.
 
 Clearing all five earns a paper forward-test, not capital.
 
+## Running the desk
+
+```
+python run_desk.py                       # allocate, shadow (the default)
+python run_desk.py --once --arm          # one real rebalance
+python run_desk.py --mode scalp --arm    # the intraday loop
+```
+
+Two modes, and they are not equals.
+
+**allocate** equal-weights a universe and rebalances every 21 days or on 25%
+drift. It forecasts nothing and it is the only thing here with evidence behind
+it: Sharpe 0.94 across 24 symbols over ten years against a median single-asset
+0.58, beating 20 of the 24, at 0.46x annual turnover. It is the default.
+
+**scalp** runs the intraday signal loop. Its signal has no measurable edge
+(+0.248 bp/trade, t = 0.35, p = 0.73) and fails all five gates. Kept because
+the machinery is sound and a future signal may earn it.
+
+Both are SHADOW until `--arm`. Sizing respects all three caps at once, which is
+not automatic: with a $5k order cap and a $10k per-name cap, a $5,833 target
+position must be SLICED across passes, and the rebalance date is only banked
+once the book actually reaches target. Note that reaching a $70k book at $10k
+per name requires at least 7 holdings.
+
 ## Data
 
 `data/` holds daily CSVs for backtesting without TWS running. Refresh with
