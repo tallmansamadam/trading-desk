@@ -8,6 +8,10 @@ Usage:
 
 Signals are next-bar executed (signal on bar i -> position held over bar i+1)
 to avoid lookahead bias. Costs modeled as a flat per-side rate (default 5 bps).
+
+Signals may be 0/1 for long-flat strategies, or any fraction in [0, 1] for
+strategies that size continuously. Cost is charged on the CHANGE in exposure,
+so the two cases coincide exactly when signals are binary.
 """
 
 from __future__ import annotations
@@ -72,18 +76,21 @@ def run_backtest(closes: list[float], signals: list[int], cost_bps: float) -> di
         target = signals[i - 1]
         cost_mult = 1.0
         if target != position:
-            cost_mult = 1 - cost
+            # Cost scales with how much exposure actually changed. For the 0/1
+            # case this is identical to charging a flat cost per flip, so the
+            # long/flat strategies behave exactly as before.
+            cost_mult = 1 - cost * abs(target - position)
             fill_equity = equity[-1] * cost_mult  # equity at the moment of the fill
-            if target == 1:
+            if position == 0 and target > 0:
                 entry_equity = fill_equity
-            elif entry_equity:
+            elif target == 0 and entry_equity:
                 trade_returns.append(fill_equity / entry_equity - 1)
                 entry_equity = None
             trades += 1
             position = target
 
         bar_return = closes[i] / closes[i - 1] - 1
-        step = (1 + (bar_return if position == 1 else 0)) * cost_mult
+        step = (1 + bar_return * position) * cost_mult
         equity.append(equity[-1] * step)
 
     total_return = equity[-1] - 1
