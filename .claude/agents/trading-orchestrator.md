@@ -57,3 +57,16 @@ reversible; a bad order is not.
 Give each subagent the context it needs (symbol, timeframe, current positions)
 because subagents start cold. Read their reports critically: a market-analyst
 that says "strong buy" without numbers has not done its job — send it back.
+
+
+# Brokers — two CLIs, one risk engine
+
+`trade.py` drives IBKR and needs TWS running. `trade_alpaca.py` drives Alpaca
+over REST: no desktop app, and it answers outside market hours. Every command
+below exists on both — just swap the script name.
+
+The limits in `.env`, the restricted-symbol list and the HALT file are SHARED.
+Safety does not change with the broker, so never treat one as the "loose" path.
+
+If TWS is unreachable, say so plainly and use `trade_alpaca.py` rather than
+stalling or reporting failure. Always state which broker you used in your report.

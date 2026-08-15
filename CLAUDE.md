@@ -72,6 +72,18 @@ never by copying the risk engine.
 `halt` / `resume` live only in `trade.py`; the HALT file is broker-agnostic and
 governs both.
 
+## Live monitor
+
+`python dashboard.py` serves a Commodore 64 styled board at
+http://127.0.0.1:6400 — account, risk limits, gross-vs-cap and daily-loss
+gauges, positions, open orders, and a zoomable price chart (wheel to zoom,
+drag to pan, shift-drag for a box, double-click to reset). It polls every 3s
+and flashes changed values so a glance confirms it is still running.
+
+It is **read-only by construction**: it never places, cancels or modifies an
+order. Order entry stays in the CLIs, behind the risk engine and the
+permission rules.
+
 ## Data
 
 `data/` holds daily CSVs for backtesting without TWS running. Refresh with
@@ -89,6 +101,7 @@ prefers `adjclose` when present, so returns are total-return.
 - `trading/brokers/` — broker adapters; add a broker here, not in `risk.py`
 - `backtest.py` — strategy evaluation, next-bar execution, costs modeled
 - `fetch_data.py` — downloads daily bars for offline backtesting
+- `dashboard.py` — read-only C64-style live monitor (Alpaca)
 - `trading/` — `config`, `connection`, `market_data`, `risk`, `orders`, `portfolio`
 - `strategies/` — pure signal functions, one per file
 - `data/` — downloaded bar CSVs (gitignored)

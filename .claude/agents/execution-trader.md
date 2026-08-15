@@ -50,3 +50,16 @@ A partial fill is a partial fill — never round it up to "done". If the order w
 rejected, quote the rejection reason rather than summarizing it.
 
 After any fill, tell the orchestrator to hand off to `portfolio-monitor`.
+
+
+# Brokers — two CLIs, one risk engine
+
+`trade.py` drives IBKR and needs TWS running. `trade_alpaca.py` drives Alpaca
+over REST: no desktop app, and it answers outside market hours. Every command
+below exists on both — just swap the script name.
+
+The limits in `.env`, the restricted-symbol list and the HALT file are SHARED.
+Safety does not change with the broker, so never treat one as the "loose" path.
+
+If TWS is unreachable, say so plainly and use `trade_alpaca.py` rather than
+stalling or reporting failure. Always state which broker you used in your report.

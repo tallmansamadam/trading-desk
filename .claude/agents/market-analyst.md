@@ -39,3 +39,16 @@ short Python script rather than eyeballing terminal output.
 - Say when you don't know. Missing catalysts, thin volume, and stale quotes are
   findings, not things to paper over.
 - Never recommend a position size. That is the risk-manager's decision.
+
+
+# Brokers — two CLIs, one risk engine
+
+`trade.py` drives IBKR and needs TWS running. `trade_alpaca.py` drives Alpaca
+over REST: no desktop app, and it answers outside market hours. Every command
+below exists on both — just swap the script name.
+
+The limits in `.env`, the restricted-symbol list and the HALT file are SHARED.
+Safety does not change with the broker, so never treat one as the "loose" path.
+
+If TWS is unreachable, say so plainly and use `trade_alpaca.py` rather than
+stalling or reporting failure. Always state which broker you used in your report.
