@@ -1,0 +1,449 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>TRADING DESK 64</title>
+<style>
+/* ---- VIC-II palette, all sixteen, used systematically ---------------- */
+:root{
+  --blk:#000000; --wht:#FFFFFF; --red:#880000; --cyn:#AAFFEE;
+  --pur:#CC44CC; --grn:#00CC55; --blu:#0000AA; --yel:#EEEE77;
+  --org:#DD8855; --brn:#664400; --lrd:#FF7777; --dgy:#333333;
+  --gry:#777777; --lgn:#AAFF66; --lbl:#0088FF; --lgy:#BBBBBB;
+  /* the boot screen pair */
+  --screen:#40318D; --border:#7869C4;
+  --cell:8px;               /* character grid unit */
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#241a52}
+body{
+  background:var(--border); min-height:100vh; padding:14px;
+  font-family:'Cascadia Mono',Consolas,'Courier New',monospace;
+  font-weight:700; font-size:13px; line-height:16px;   /* locked to the grid */
+  letter-spacing:.5px; text-transform:uppercase; color:var(--lgy);
+}
+
+/* ---- the CRT ---------------------------------------------------------- */
+#screen{
+  position:relative; max-width:1160px; margin:0 auto;
+  background:var(--screen); border:16px solid var(--border);
+  border-radius:14px; padding:16px 18px 20px;
+  box-shadow:0 0 0 3px #241a52, 0 18px 50px rgba(0,0,0,.55);
+  transition:border-color .04s linear;
+}
+/* scanlines + phosphor vignette, both inert to the mouse */
+#screen::after{
+  content:''; position:absolute; inset:0; pointer-events:none; border-radius:4px;
+  background:
+    repeating-linear-gradient(to bottom, rgba(0,0,0,.20) 0 1px, rgba(0,0,0,0) 1px 3px),
+    radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.42) 100%);
+}
+.glow{text-shadow:0 0 5px currentColor}
+
+/* ---- boot overlay ----------------------------------------------------- */
+#boot{
+  position:absolute; inset:0; z-index:5; background:var(--screen);
+  padding:16px 18px; white-space:pre; color:var(--lgy); border-radius:4px;
+  cursor:pointer; overflow:hidden;
+}
+#boot.done{display:none}
+
+/* ---- type ------------------------------------------------------------- */
+h1{font-size:13px;text-align:center;color:var(--lgy)}
+.sub{text-align:center;color:var(--border);margin-bottom:6px}
+.k{color:var(--border)} .v{color:var(--wht)}
+.cy{color:var(--cyn)} .ye{color:var(--yel)} .gn{color:var(--lgn)}
+.rd{color:var(--lrd)} .og{color:var(--org)}
+.dim{color:#6c5fb5}
+
+/* ---- panels: PETSCII frames, not CSS chrome --------------------------- */
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(276px,1fr))}
+.panel{position:relative;border:2px solid var(--border);padding:12px 12px 10px}
+.panel > .cap{
+  position:absolute; top:-9px; left:9px; background:var(--screen);
+  padding:0 6px; color:var(--cyn); font-size:12px;
+}
+/* corner blocks — the PETSCII touch */
+.panel::before,.panel::after{
+  content:'\\2588'; position:absolute; color:var(--border);
+  font-size:9px; line-height:9px;
+}
+.panel::before{top:-2px;right:-2px} .panel::after{bottom:-2px;left:-2px}
+
+table{width:100%;border-collapse:collapse}
+td{padding:0 8px 0 0;white-space:nowrap;height:16px}
+td.n{text-align:right}
+th{text-align:left;color:var(--border);font-weight:700;padding:0 8px 0 0}
+th.n{text-align:right}
+
+/* value-change flash */
+@keyframes fl{0%{background:var(--cyn);color:#000}100%{background:transparent}}
+.fl{animation:fl .5s ease-out}
+
+/* block-character gauges — no CSS bars, actual glyphs */
+.gauge{letter-spacing:0;font-size:13px}
+
+#cur{display:inline-block;width:8px;height:13px;background:var(--lgy);
+  vertical-align:-2px;animation:bl 1.05s steps(1) infinite}
+@keyframes bl{0%,49%{opacity:1}50%,100%{opacity:0}}
+
+/* ---- chart: real C64 resolution, upscaled --------------------------- */
+#chartbox{position:relative;border:2px solid var(--border);padding:12px 12px 10px;margin-top:14px}
+#chartbox > .cap{position:absolute;top:-9px;left:9px;background:var(--screen);
+  padding:0 6px;color:var(--cyn);font-size:12px}
+canvas{
+  display:block; width:100%; height:auto; background:var(--blk);
+  image-rendering:pixelated; image-rendering:crisp-edges;
+  cursor:crosshair; touch-action:none;
+}
+.ctl{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:4px 0 8px}
+button,input{
+  font:inherit;text-transform:uppercase;letter-spacing:.5px;
+  background:var(--screen);color:var(--lgy);border:2px solid var(--border);
+  padding:1px 8px;cursor:pointer;
+}
+button:hover{background:var(--border);color:var(--screen)}
+button.on{background:var(--cyn);color:#000;border-color:var(--cyn)}
+input{width:74px;cursor:text;color:var(--wht)}
+.hint{color:var(--border);font-size:11px;margin-top:6px}
+#err{color:var(--lrd);margin-top:8px;text-transform:none}
+</style></head><body>
+<div id="screen">
+
+  <div id="boot"></div>
+
+  <h1 class="glow">**** CLAUDE TRADING DESK 64 ****</h1>
+  <div class="sub">64K RAM SYSTEM &nbsp; <span id="modeline">READ ONLY MONITOR</span></div>
+  <div class="dim" id="rule1"></div>
+
+  <div class="grid">
+    <div class="panel"><span class="cap">ACCOUNT</span><table id="acct"></table></div>
+    <div class="panel"><span class="cap">RISK LIMITS</span><table id="limits"></table></div>
+    <div class="panel"><span class="cap">EXPOSURE</span><table id="expo"></table>
+      <div id="gauges" class="gauge"></div></div>
+  </div>
+
+  <div id="chartbox">
+    <span class="cap">PRICE</span>
+    <div class="ctl">
+      <input id="sym" value="SPY" maxlength="6">
+      <button id="load">LOAD</button>
+      <span class="k">TF</span>
+      <button class="tf" data-tf="1Min">1M</button>
+      <button class="tf" data-tf="5Min">5M</button>
+      <button class="tf" data-tf="15Min">15M</button>
+      <button class="tf" data-tf="1Hour">1H</button>
+      <button class="tf on" data-tf="1Day">1D</button>
+      <button id="zin">ZOOM+</button>
+      <button id="zout">ZOOM-</button>
+      <button id="zreset">RESET</button>
+      <span class="k" id="zinfo"></span>
+    </div>
+    <canvas id="chart" width="320" height="140"></canvas>
+    <div class="hint">WHEEL ZOOM &middot; DRAG PAN &middot; SHIFT-DRAG BOX &middot; DBL-CLICK RESET</div>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="panel"><span class="cap">POSITIONS</span><table id="pos"></table></div>
+    <div class="panel"><span class="cap">OPEN ORDERS</span><table id="ord"></table></div>
+  </div>
+
+  <div class="dim" id="rule2"></div>
+  <div id="status"></div>
+  <div id="err"></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const money = n => (n<0?"-$":"$") + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const prev = {};
+const cell = (key, html, cls) => {
+  const ch = prev[key] !== undefined && prev[key] !== html;
+  prev[key] = html;
+  return `<td class="${cls||'v'} ${ch?'fl':''}">${html}</td>`;
+};
+const rule = el => { el.textContent = '─'.repeat(Math.max(20, Math.floor(el.clientWidth/7.6))); };
+const gauge = (pct, w=18) => {
+  const f = Math.max(0, Math.min(w, Math.round(pct/100*w)));
+  return '█'.repeat(f) + '░'.repeat(w-f);
+};
+
+/* ---- boot sequence, skippable ---------------------------------------- */
+const BOOT = [
+  "",
+  "    **** COMMODORE 64 BASIC V2 ****",
+  "",
+  " 64K RAM SYSTEM  38911 BASIC BYTES FREE",
+  "",
+  "READY.",
+  'LOAD"TRADING-DESK",8,1',
+  "",
+  "SEARCHING FOR TRADING-DESK",
+  "LOADING",
+  "READY.",
+  "RUN",
+  ""
+];
+function boot(){
+  const el = $('#boot');
+  if(sessionStorage.getItem('booted')){ el.classList.add('done'); return; }
+  let line = 0, ch = 0, txt = '';
+  const skip = ()=>{ clearInterval(t); el.classList.add('done'); sessionStorage.setItem('booted','1'); };
+  el.onclick = skip;
+  const t = setInterval(()=>{
+    if(line >= BOOT.length){ skip(); return; }
+    const src = BOOT[line];
+    if(ch >= src.length){ txt += '\n'; line++; ch = 0; }
+    else { txt += src[ch++]; }
+    el.textContent = txt + '█';
+  }, 9);
+}
+
+/* ---- tape-loading border flash: the "it is alive" tell ---------------- */
+const STRIPES = ['#FFFFFF','#AAFFEE','#AAFF66','#EEEE77','#DD8855','#FF7777','#CC44CC','#0088FF'];
+function pulse(){
+  const el = $('#screen'); let i = 0;
+  const t = setInterval(()=>{
+    el.style.borderColor = STRIPES[i % STRIPES.length];
+    if(++i > 7){ clearInterval(t); el.style.borderColor = ''; }
+  }, 42);
+}
+
+/* ---- state polling ---------------------------------------------------- */
+let ticks = 0, lastOk = 0;
+async function poll(){
+  try{
+    const d = await (await fetch('/api/state',{cache:'no-store'})).json();
+    render(d); lastOk = Date.now(); pulse();
+    $('#err').textContent = d.error ? ('! ' + d.error) : '';
+  }catch(e){
+    $('#err').textContent = '! LOST THE SERVER — IS dashboard.py STILL RUNNING?';
+  }
+  ticks++; renderStatus();
+}
+function renderStatus(){
+  const age = lastOk ? Math.round((Date.now()-lastOk)/1000) : '--';
+  const live = lastOk && (Date.now()-lastOk) < 12000;
+  $('#status').innerHTML =
+    `<span class="${live?'gn':'rd'} glow">${live?'● LIVE':'● STALLED'}</span> `
+  + `<span class="k">POLL</span> <span class="v">${ticks}</span> `
+  + `<span class="k">LAST</span> <span class="v">${age}S</span> `
+  + `<span class="k">READY.</span><span id="cur"></span>`;
+}
+setInterval(renderStatus, 1000);
+
+function render(d){
+  const a = d.account||{}, L = d.limits||{};
+  $('#modeline').innerHTML = `<span class="cy">${d.mode}</span> &middot; `
+    + `${a.market_open ? '<span class="gn">MARKET OPEN</span>' : '<span class="k">MARKET CLOSED</span>'}`
+    + (d.halted ? ' &middot; <span class="rd glow">HALTED</span>' : '');
+
+  $('#acct').innerHTML =
+      `<tr><td class="k">ACCOUNT</td>${cell('a0', a.id||'—')}</tr>`
+    + `<tr><td class="k">EQUITY</td>${cell('a1', money(a.equity||0))}</tr>`
+    + `<tr><td class="k">CASH</td>${cell('a2', money(a.cash||0))}</tr>`
+    + `<tr><td class="k">BUYING PWR</td>${cell('a3', money(a.buying_power||0))}</tr>`
+    + `<tr><td class="k">DAY P&amp;L</td>${cell('a4', money(a.daily_pnl||0), (a.daily_pnl||0)>=0?'gn':'rd')}</tr>`
+    + `<tr><td class="k">HALT</td>${cell('a5', d.halted?'YES':'NO', d.halted?'rd':'gn')}</tr>`;
+
+  $('#limits').innerHTML =
+      `<tr><td class="k">PER ORDER</td>${cell('l0', money(L.order||0))}</tr>`
+    + `<tr><td class="k">PER SYMBOL</td>${cell('l1', money(L.position||0))}</tr>`
+    + `<tr><td class="k">GROSS BOOK</td>${cell('l2', L.gross==null?'<span class="rd">NOT ENFORCED</span>':money(L.gross))}</tr>`
+    + `<tr><td class="k">DAILY LOSS</td>${cell('l3', money(L.daily_loss||0))}</tr>`
+    + `<tr><td class="k">MAX ORDERS</td>${cell('l4', String(L.open_orders||0))}</tr>`
+    + `<tr><td class="k">BLOCKED</td><td class="ye" style="white-space:normal">${(L.restricted||[]).join(' ')||'—'}</td></tr>`;
+
+  const gross = d.gross||0, eq = a.equity||1;
+  const gPct = L.gross ? Math.min(100, gross/L.gross*100) : 0;
+  const lPct = Math.min(100, Math.max(0, (-(a.daily_pnl||0)/(L.daily_loss||1))*100));
+  $('#expo').innerHTML =
+      `<tr><td class="k">GROSS</td>${cell('e0', money(gross))}</tr>`
+    + `<tr><td class="k">% EQUITY</td>${cell('e1', (gross/eq*100).toFixed(1)+'%')}</tr>`
+    + `<tr><td class="k">POSITIONS</td>${cell('e2', String((d.positions||[]).length))}</tr>`
+    + `<tr><td class="k">ORDERS</td>${cell('e3', String((d.orders||[]).length))}</tr>`;
+  const cls = p => p>90?'rd':p>60?'ye':'gn';
+  $('#gauges').innerHTML =
+      `<div class="k" style="margin-top:8px">GROSS/CAP</div>`
+    + `<div class="${cls(gPct)}">${gauge(gPct)} ${gPct.toFixed(0)}%</div>`
+    + `<div class="k" style="margin-top:4px">LOSS USED</div>`
+    + `<div class="${cls(lPct)}">${gauge(lPct)} ${lPct.toFixed(0)}%</div>`;
+
+  const P = d.positions||[];
+  $('#pos').innerHTML = P.length
+    ? `<tr><th>SYM</th><th class="n">QTY</th><th class="n">PRICE</th><th class="n">VALUE</th><th class="n">UPNL</th><th class="n">CAP</th></tr>`
+      + P.map(p=>`<tr><td class="v">${p.symbol}</td><td class="n v">${p.qty}</td>`
+        + `<td class="n v">${p.price.toFixed(2)}</td><td class="n v">${money(p.value)}</td>`
+        + `<td class="n ${p.upnl>=0?'gn':'rd'}">${money(p.upnl)}</td>`
+        + `<td class="n ${p.pct_cap>100?'rd':p.pct_cap>80?'ye':'v'}">${p.pct_cap.toFixed(0)}%</td></tr>`).join('')
+    : `<tr><td class="k">NO POSITIONS.</td></tr>`;
+
+  const O = d.orders||[];
+  $('#ord').innerHTML = O.length
+    ? `<tr><th>ID</th><th>SYM</th><th>SIDE</th><th class="n">QTY</th><th class="n">LIMIT</th><th>STATUS</th></tr>`
+      + O.map(o=>`<tr><td class="v">${o.id}</td><td class="v">${o.symbol}</td>`
+        + `<td class="${o.side==='BUY'?'gn':'rd'}">${o.side}</td><td class="n v">${o.qty}</td>`
+        + `<td class="n v">${o.limit?o.limit.toFixed(2):'MKT'}</td><td class="ye">${o.status}</td></tr>`).join('')
+    : `<tr><td class="k">NO OPEN ORDERS.</td></tr>`;
+}
+
+/* ---- chart, drawn at native C64 resolution --------------------------- */
+const CW = 320, CH = 140;          /* the canvas IS 320 px wide, like the machine */
+const cv = $('#chart'), ctx = cv.getContext('2d');
+let bars = [], view = null, drag = null, hover = null, tf = '1Day';
+
+async function loadBars(){
+  const sym = ($('#sym').value.trim().toUpperCase()) || 'SPY';
+  try{
+    bars = await (await fetch(`/api/bars?symbol=${encodeURIComponent(sym)}&timeframe=${tf}`,{cache:'no-store'})).json();
+  }catch(e){ bars = []; }
+  view = bars.length ? {a:0, b:bars.length-1} : null;
+  draw();
+}
+function clampView(){
+  if(!view || !bars.length) return;
+  if(view.b-view.a < 4) view.b = view.a + 4;
+  if(view.a < 0){ view.b -= view.a; view.a = 0; }
+  if(view.b > bars.length-1){ const d = view.b-(bars.length-1); view.a -= d; view.b -= d; }
+  view.a = Math.max(0, view.a); view.b = Math.min(bars.length-1, view.b);
+}
+function draw(){
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,CW,CH);
+  if(!bars.length || !view){
+    ctx.fillStyle = '#7869C4'; ctx.font = '700 8px monospace';
+    ctx.fillText('NO BAR DATA - PRESS LOAD', 6, 14);
+    $('#zinfo').textContent = ''; return;
+  }
+  clampView();
+  const L=2, R=36, T=4, B=12;
+  const slice = bars.slice(Math.floor(view.a), Math.ceil(view.b)+1);
+  let lo=Infinity, hi=-Infinity;
+  for(const b of slice){ lo=Math.min(lo,b.l??b.c); hi=Math.max(hi,b.h??b.c); }
+  if(!isFinite(lo)||!isFinite(hi)) return;
+  const pd=(hi-lo)*0.08||1; lo-=pd; hi+=pd;
+  const X = i => L + (i-view.a)/(view.b-view.a)*(CW-L-R);
+  const Y = p => T + (hi-p)/(hi-lo)*(CH-T-B);
+
+  ctx.font = '700 7px monospace'; ctx.lineWidth = 1;
+  /* dotted grid — dithered, the way a VIC-II would */
+  ctx.fillStyle = '#2a2065';
+  for(let k=0;k<=4;k++){
+    const yy = Math.round(Y(lo+(hi-lo)*k/4)) + .5;
+    for(let x=L; x<CW-R; x+=2) ctx.fillRect(x, yy-.5, 1, 1);
+  }
+  ctx.fillStyle = '#7869C4';
+  for(let k=0;k<=4;k++){
+    const p = lo+(hi-lo)*k/4;
+    ctx.fillText(p.toFixed(2), CW-R+3, Math.round(Y(p))+2);
+  }
+  const n = Math.floor(view.b)-Math.floor(view.a);
+  for(let k=0;k<=3;k++){
+    const i = Math.floor(view.a+n*k/3); if(!bars[i]) continue;
+    const lab = tf==='1Day' ? bars[i].t.slice(5,10) : bars[i].t.slice(11,16);
+    ctx.fillText(lab, Math.min(CW-R-20, Math.max(L, X(i)-9)), CH-3);
+  }
+  /* The trace, plotted a pixel at a time.
+     A stroked path gets anti-aliased into a soft grey smear at 320px, which is
+     precisely the look this whole canvas exists to avoid. Walking one screen
+     column at a time and filling the vertical run between samples gives the
+     hard-edged single-pixel line a VIC-II would actually produce. */
+  ctx.fillStyle = '#AAFFEE';
+  let prevY = null;
+  for(let px = L; px < CW-R; px++){
+    const f = (px-L)/(CW-L-R);
+    const idx = Math.round(view.a + f*(view.b-view.a));
+    const b = bars[Math.max(0, Math.min(bars.length-1, idx))];
+    if(!b) continue;
+    const y = Math.round(Y(b.c));
+    if(prevY === null) ctx.fillRect(px, y, 1, 1);
+    else { const a = Math.min(prevY,y), z = Math.max(prevY,y); ctx.fillRect(px, a, 1, z-a+1); }
+    prevY = y;
+  }
+  const li = Math.min(Math.ceil(view.b), bars.length-1);
+  ctx.fillStyle = '#EEEE77'; ctx.fillRect(Math.round(X(li))-1, Math.round(Y(bars[li].c))-1, 3, 3);
+
+  if(hover !== null){
+    const i = Math.round(view.a + plotFrac(hover)*(view.b-view.a));
+    const b = bars[Math.max(0,Math.min(bars.length-1,i))];
+    if(b){
+      const px = Math.round(X(i));
+      ctx.fillStyle = '#DD8855';                       // dashed, plotted not stroked
+      for(let y=T; y<CH-B; y+=3) ctx.fillRect(px, y, 1, 2);
+      ctx.fillStyle = '#000'; ctx.fillRect(2,2,150,10);
+      ctx.fillStyle = '#EEEE77';
+      ctx.fillText(`${b.t.slice(0,16).replace('T',' ')} C${b.c.toFixed(2)}`, 4, 9);
+    }
+  }
+  if(drag && drag.box){
+    const x0 = Math.round(Math.min(drag.x0,drag.x1)), w = Math.round(Math.abs(drag.x1-drag.x0));
+    ctx.fillStyle = 'rgba(170,255,238,.20)'; ctx.fillRect(x0,T,w,CH-T-B);
+    ctx.fillStyle = '#AAFFEE';                        // 1px hard edges
+    ctx.fillRect(x0,T,1,CH-T-B); ctx.fillRect(x0+w-1,T,1,CH-T-B);
+  }
+  $('#zinfo').textContent = `${slice.length}/${bars.length} BARS`;
+}
+/* Pointer maths: CSS px -> the 320-wide canvas space, then -> a fraction of
+   the PLOT area (not the whole canvas, which includes the price gutter). */
+const PL = 2, PR = 36;
+const toCanvasX = clientX => {
+  const r = cv.getBoundingClientRect();
+  return (clientX - r.left) / r.width * CW;
+};
+const plotFrac = x => Math.max(0, Math.min(1, (x - PL) / (CW - PL - PR)));
+function zoomAt(frac, factor){
+  if(!view) return;
+  const span = view.b-view.a, c = view.a + span*frac, ns = span*factor;
+  view.a = c - ns*frac; view.b = c + ns*(1-frac);
+  clampView(); draw();
+}
+cv.addEventListener('wheel', e=>{
+  e.preventDefault();
+  zoomAt(plotFrac(toCanvasX(e.clientX)), e.deltaY>0 ? 1.18 : 1/1.18);
+},{passive:false});
+cv.addEventListener('mousedown', e=>{
+  const x = toCanvasX(e.clientX);
+  drag = {x0:x, x1:x, box:e.shiftKey, a:view?view.a:0, b:view?view.b:0};
+});
+window.addEventListener('mousemove', e=>{
+  const r = cv.getBoundingClientRect();
+  const inside = e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom;
+  hover = inside ? toCanvasX(e.clientX) : null;
+  if(drag){
+    drag.x1 = toCanvasX(e.clientX);
+    if(!drag.box && view){
+      const span = drag.b-drag.a;
+      const dx = (plotFrac(drag.x1) - plotFrac(drag.x0)) * span;
+      view.a = drag.a-dx; view.b = drag.b-dx; clampView();
+    }
+  }
+  if(drag || inside) draw();
+});
+window.addEventListener('mouseup', ()=>{
+  if(drag && drag.box && view && Math.abs(drag.x1-drag.x0) > 4){
+    // Resolve against the window as it was when the drag STARTED, so the box
+    // maps to what the user actually saw under the cursor.
+    const a0 = drag.a, span = drag.b - drag.a;
+    const f0 = plotFrac(Math.min(drag.x0, drag.x1));
+    const f1 = plotFrac(Math.max(drag.x0, drag.x1));
+    view.a = a0 + span*f0;
+    view.b = a0 + span*f1;
+    clampView();
+  }
+  drag = null; draw();
+});
+cv.addEventListener('dblclick', ()=>{ if(bars.length){ view={a:0,b:bars.length-1}; draw(); }});
+$('#zin').onclick   = ()=>zoomAt(.5, 1/1.4);
+$('#zout').onclick  = ()=>zoomAt(.5, 1.4);
+$('#zreset').onclick= ()=>{ if(bars.length){ view={a:0,b:bars.length-1}; draw(); }};
+$('#load').onclick  = loadBars;
+$('#sym').addEventListener('keydown', e=>{ if(e.key==='Enter') loadBars(); });
+document.querySelectorAll('.tf').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tf').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); tf = b.dataset.tf; loadBars();
+});
+
+const relayout = ()=>{ rule($('#rule1')); rule($('#rule2')); };
+window.addEventListener('resize', relayout);
+if(window.ResizeObserver) new ResizeObserver(relayout).observe(document.body);
+
+boot(); relayout(); loadBars(); poll();
+setInterval(poll, 3000);
+setInterval(loadBars, 30000);
+</script></body></html>
