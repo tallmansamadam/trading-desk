@@ -47,6 +47,31 @@ python backtest.py sma_cross SPY --csv data/SPY.csv    # bars from disk
 python fetch_data.py SPY QQQ --range 10y               # offline test data
 ```
 
+## Two brokers, one risk engine
+
+`trade.py` drives IBKR; `trade_alpaca.py` drives Alpaca. They share
+`trading/risk.py`, the limits in `.env`, and the HALT file — **swapping brokers
+must never mean swapping safety.**
+
+That works because the risk engine is duck-typed: it only needs an object
+exposing `positions()`, `portfolio()`, `reqAllOpenOrders()`, `reqPnL()`,
+`cancelPnL()` and `sleep()`. `trading/brokers/alpaca.py` presents exactly that
+surface over Alpaca's REST API, mimicking the ib_async shapes closely enough
+that `trading/portfolio.py`'s report tables work unchanged too. A broker that
+prices its own symbols exposes `reference_price()`, and
+`trading/market_data.py` dispatches to it — which is how `risk.py` supports
+both brokers without being modified at all.
+
+Alpaca needs no desktop app. Set `ALPACA_API_KEY` / `ALPACA_SECRET_KEY` in
+`.env` and run `python trade_alpaca.py status`. `TRADING_MODE` alone selects the
+paper or live endpoint; the base URL is never taken from the environment, and
+Alpaca issues separate key pairs per environment, so paper keys cannot reach the
+live venue. Add a broker by writing another adapter in `trading/brokers/` —
+never by copying the risk engine.
+
+`halt` / `resume` live only in `trade.py`; the HALT file is broker-agnostic and
+governs both.
+
 ## Data
 
 `data/` holds daily CSVs for backtesting without TWS running. Refresh with
@@ -59,7 +84,9 @@ prefers `adjclose` when present, so returns are total-return.
 
 ## Layout
 
-- `trade.py` — CLI the agents drive
+- `trade.py` — CLI the agents drive (IBKR)
+- `trade_alpaca.py` — same commands against Alpaca
+- `trading/brokers/` — broker adapters; add a broker here, not in `risk.py`
 - `backtest.py` — strategy evaluation, next-bar execution, costs modeled
 - `fetch_data.py` — downloads daily bars for offline backtesting
 - `trading/` — `config`, `connection`, `market_data`, `risk`, `orders`, `portfolio`

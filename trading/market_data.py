@@ -52,7 +52,15 @@ def reference_price(ib: IB, symbol: str) -> float:
     The fallback is a STALE price and says so loudly: an overnight gap makes it
     an underestimate of true notional. Prefer an explicit --limit, which skips
     this path entirely because the limit price is what actually gets sized.
+
+    Broker dispatch: trading/risk.py imports this function by name, so a broker
+    that prices its own symbols (see trading/brokers/alpaca.py) advertises a
+    reference_price method and gets used here. That is what keeps the risk
+    engine broker-agnostic without modifying it.
     """
+    if hasattr(ib, "reference_price"):
+        return float(ib.reference_price(symbol))
+
     row = snapshot(ib, [symbol])[0]
     if row["last"]:
         return float(row["last"])
