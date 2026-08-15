@@ -84,6 +84,26 @@ It is **read-only by construction**: it never places, cancels or modifies an
 order. Order entry stays in the CLIs, behind the risk engine and the
 permission rules.
 
+## No strategy trades without clearing validate.py
+
+```
+python validate.py sma_cross --param fast=5 --param slow=20
+```
+
+Five gates, each of which has already killed something here: generalisation
+across a universe, out-of-sample split, risk-matched against simply holding
+less, cost stress at 2x spread, and parameter plateau versus a lone spike.
+
+Verdicts are three-state. **INSUFFICIENT is not a pass** — a gate that could not
+run leaves the strategy unproven, and unproven is not proven.
+
+`strategies/_control_lookahead.py` is a deliberate cheat used as a positive
+control. A validator that rejects everything is indistinguishable from a broken
+one, so the control proves the gates can be cleared (it passes at t = 35.7).
+It must never appear in a live configuration.
+
+Clearing all five earns a paper forward-test, not capital.
+
 ## Data
 
 `data/` holds daily CSVs for backtesting without TWS running. Refresh with
@@ -100,6 +120,9 @@ prefers `adjclose` when present, so returns are total-return.
 - `trade_alpaca.py` — same commands against Alpaca
 - `trading/brokers/` — broker adapters; add a broker here, not in `risk.py`
 - `backtest.py` — strategy evaluation, next-bar execution, costs modeled
+- `validate.py` — five gates a strategy must clear before it trades
+- `backtest_scalp.py` — intraday scalp evaluation with intrabar stops
+- `run_desk.py` — the autonomous loop (shadow by default)
 - `fetch_data.py` — downloads daily bars for offline backtesting
 - `dashboard.py` — read-only C64-style live monitor (Alpaca)
 - `trading/` — `config`, `connection`, `market_data`, `risk`, `orders`, `portfolio`
