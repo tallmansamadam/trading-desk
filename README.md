@@ -1,5 +1,10 @@
 # Trading Desk
 
+[![tests](https://github.com/tallmansamadam/trading-desk/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/tallmansamadam/trading-desk/actions/workflows/tests.yml)
+[![python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://github.com/tallmansamadam/trading-desk/actions/workflows/tests.yml)
+[![ruff](https://img.shields.io/badge/lint-ruff-261230)](https://docs.astral.sh/ruff/)
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 A paper-trading system for US equities and crypto, built around a hard risk
 engine and — more unusually — a validation harness whose job is to **reject**
 strategies before they reach capital.
