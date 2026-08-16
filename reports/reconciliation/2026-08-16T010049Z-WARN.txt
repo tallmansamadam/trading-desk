@@ -1,0 +1,46 @@
+# reconciliation report — WARN
+# generated 2026-08-16T01:00:49+00:00
+# mode paper   window 2d
+# read-only: this records a discrepancy check, it does not correct one
+
+========================================================================
+  RECONCILIATION — account PA****I7Y   last 2 day(s)
+  halted: False
+========================================================================
+
+ORDERS   journal says sent: 9   at broker: 12   matched: 9
+  note   at the broker but not in any journal: SPY buy 1 (canceled) id=e2f85b79
+  note   at the broker but not in any journal: SPY buy 1 (canceled) id=394271f1
+  note   at the broker but not in any journal: SPY buy 1 (canceled) id=67474214
+
+BOOK     target $5,833 per name
+  SPY    $         0  vs $    5,833      -100%   <-- not held
+  QQQ    $         0  vs $    5,833      -100%   <-- not held
+  IWM    $         0  vs $    5,833      -100%   <-- not held
+  EFA    $         0  vs $    5,833      -100%   <-- not held
+  EEM    $         0  vs $    5,833      -100%   <-- not held
+  TLT    $         0  vs $    5,833      -100%   <-- not held
+  IEF    $         0  vs $    5,833      -100%   <-- not held
+  LQD    $         0  vs $    5,833      -100%   <-- not held
+  HYG    $         0  vs $    5,833      -100%   <-- not held
+  GLD    $         0  vs $    5,833      -100%   <-- not held
+  DBC    $         0  vs $    5,833      -100%   <-- not held
+  VNQ    $         0  vs $    5,833      -100%   <-- not held
+
+LIMITS   gross $0 of $70,000 cap (0%)
+
+========================================================================
+  12 warning(s):
+    - SPY is in the target universe but not held
+    - QQQ is in the target universe but not held
+    - IWM is in the target universe but not held
+    - EFA is in the target universe but not held
+    - EEM is in the target universe but not held
+    - TLT is in the target universe but not held
+    - IEF is in the target universe but not held
+    - LQD is in the target universe but not held
+    - HYG is in the target universe but not held
+    - GLD is in the target universe but not held
+    - DBC is in the target universe but not held
+    - VNQ is in the target universe but not held
+========================================================================

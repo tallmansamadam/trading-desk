@@ -2,7 +2,11 @@
 .env.ready
 HALT
 *.csv
+logs/*.json
 __pycache__/
 *.pyc
 .venv/
 sleeper.log
+
+# reconciliation reports ARE tracked — they are the audit trail
+!reports/reconciliation/*.txt

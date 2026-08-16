@@ -46,8 +46,16 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 LOG_DIR = Path(__file__).resolve().parent / "logs"
+REPORT_DIR = Path(__file__).resolve().parent / "reports" / "reconciliation"
 
 OK, WARN, BREAK = "OK", "WARN", "BREAK"
+
+
+def mask(account: str) -> str:
+    """Reports are committed to a public repository. The account identifier
+    adds nothing to the audit value of a reconciliation, so it is masked by
+    default; --full-account includes it for an internal record."""
+    return f"{account[:2]}****{account[-3:]}" if len(account) > 6 else "****"
 
 
 def journal_orders(days: int) -> list[dict]:
@@ -153,6 +161,10 @@ def main() -> None:
     ap.add_argument("--symbols", nargs="+", default=None,
                     help="target universe (defaults to the service's)")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
+    ap.add_argument("--save", action="store_true",
+                    help="also write a timestamped report to reports/reconciliation/")
+    ap.add_argument("--full-account", action="store_true",
+                    help="include the unmasked account number in the report")
     args = ap.parse_args()
 
     settings = load_settings()
@@ -179,39 +191,61 @@ def main() -> None:
                          indent=2))
         sys.exit(1 if breaks else 0)
 
-    print("=" * 72)
-    print(f"  RECONCILIATION — account {account}   last {args.days} day(s)")
-    print(f"  halted: {trading_halted()}")
-    print("=" * 72)
+    shown_account = account if args.full_account else mask(account)
+    out_lines: list[str] = []
 
-    print(f"\nORDERS   journal says sent: {orders['recorded']}   "
+    def emit(line: str = "") -> None:
+        print(line)
+        out_lines.append(line)
+
+    emit("=" * 72)
+    emit(f"  RECONCILIATION — account {shown_account}   last {args.days} day(s)")
+    emit(f"  halted: {trading_halted()}")
+    emit("=" * 72)
+
+    emit(f"\nORDERS   journal says sent: {orders['recorded']}   "
           f"at broker: {orders['at_broker']}   matched: {orders['matched']}")
     for sym in orders["orphans"]:
-        print(f"  note   at the broker but not in any journal: {sym}")
+        emit(f"  note   at the broker but not in any journal: {sym}")
     if not orders["recorded"]:
-        print("  (no ORDER-SENT rows in range — shadow runs do not count as claims)")
+        emit("  (no ORDER-SENT rows in range — shadow runs do not count as claims)")
 
-    print(f"\nBOOK     target ${book['per_target']:,.0f} per name")
+    emit(f"\nBOOK     target ${book['per_target']:,.0f} per name")
     for sym, v, per, drift in book["rows"]:
         flag = "" if v else "   <-- not held"
-        print(f"  {sym:<6} ${v:>10,.0f}  vs ${per:>9,.0f}   {drift:+7.0f}%{flag}")
+        emit(f"  {sym:<6} ${v:>10,.0f}  vs ${per:>9,.0f}   {drift:+7.0f}%{flag}")
 
-    print(f"\nLIMITS   gross ${limits['gross']:,.0f}"
+    emit(f"\nLIMITS   gross ${limits['gross']:,.0f}"
           + (f" of ${limits['cap']:,.0f} cap "
              f"({limits['gross']/limits['cap']:.0%})" if limits["cap"] else ""))
 
-    print("\n" + "=" * 72)
+    emit("\n" + "=" * 72)
     if breaks:
-        print(f"  {len(breaks)} BREAK(S) — these should not happen:")
+        emit(f"  {len(breaks)} BREAK(S) — these should not happen:")
         for f in breaks:
-            print(f"    ! {f}")
+            emit(f"    ! {f}")
     if warns:
-        print(f"  {len(warns)} warning(s):")
+        emit(f"  {len(warns)} warning(s):")
         for f in warns:
-            print(f"    - {f}")
+            emit(f"    - {f}")
     if not breaks and not warns:
-        print("  CLEAN — the record and the broker agree.")
-    print("=" * 72)
+        emit("  CLEAN — the record and the broker agree.")
+    emit("=" * 72)
+    if args.save:
+        REPORT_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H%M%SZ")
+        verdict = "BREAK" if breaks else ("WARN" if warns else "CLEAN")
+        path = REPORT_DIR / f"{stamp}-{verdict}.txt"
+        header = [
+            f"# reconciliation report — {verdict}",
+            f"# generated {datetime.now(UTC).isoformat(timespec='seconds')}",
+            f"# mode {settings.mode}   window {args.days}d",
+            "# read-only: this records a discrepancy check, it does not correct one",
+            "",
+        ]
+        path.write_text("\n".join(header + out_lines) + "\n", encoding="utf-8")
+        print(f"\nsaved {path.relative_to(Path(__file__).resolve().parent)}")
+
     sys.exit(1 if breaks else 0)
 
 
