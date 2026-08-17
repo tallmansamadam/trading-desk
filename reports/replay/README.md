@@ -3,6 +3,9 @@
 Committed output from `replay.py` — the real `Service` + `Allocator` + risk
 engine run over historical bars through a replay broker.
 
+Data must be daily. Fetch long histories with `--since`, never `--range`:
+`python fetch_data.py SPY QQQ ... --since 2012-01-01`
+
 ```
 python replay.py --start 2022-01-03 --end 2022-12-30 --pathology --save 2022-bear
 ```
@@ -16,6 +19,7 @@ would otherwise have discovered in production.
 | baseline | period | what it stresses |
 |---|---|---|
 | `covid-crash` | 2020-01 → 2020-06 | a violent gap down and a fast recovery; the daily-loss rail fires ~108 times |
+| `2013-taper` | 2013 | a rate shock: the bond sleeve breaks (TLT −12%, VNQ −18% in the window) while equities are flat-to-up |
 | `2017-meltup` | 2017 | a low-volatility rise; the desk trades little and drifts +4.9% PAST the gross cap |
 | `2018-vol` | 2018 | a year where every asset class finished negative, ending in a −13.8% Q4; the desk barely trades |
 | `2022-bear` | 2022 | a slow grind where stocks *and* bonds fall together, so diversification cannot rescue the year |

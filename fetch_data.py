@@ -27,6 +27,7 @@ import time
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 
 # Windows consoles default to cp1252, which cannot encode characters the risk
@@ -41,8 +42,24 @@ CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
-def fetch(symbol: str, rng: str, interval: str, retries: int = 3) -> list[dict]:
-    url = f"{CHART_URL.format(symbol=symbol.upper())}?range={rng}&interval={interval}"
+def fetch(symbol: str, rng: str, interval: str, retries: int = 3,
+          since: str | None = None) -> list[dict]:
+    """Download bars for one symbol.
+
+    `since` uses explicit period1/period2 timestamps instead of a range string.
+    That matters: the provider silently DOWNSAMPLES long ranges — asking for
+    `range=max` returns monthly bars, not thirty years of daily ones, and the
+    response looks perfectly valid. An explicit window keeps daily granularity
+    however far back it reaches.
+    """
+    base = CHART_URL.format(symbol=symbol.upper())
+    if since:
+        start = int(datetime.strptime(since, "%Y-%m-%d")
+                    .replace(tzinfo=UTC).timestamp())
+        end = int(datetime.now(UTC).timestamp())
+        url = f"{base}?period1={start}&period2={end}&interval={interval}"
+    else:
+        url = f"{base}?range={rng}&interval={interval}"
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
 
     last_err: Exception | None = None
@@ -91,6 +108,21 @@ def fetch(symbol: str, rng: str, interval: str, retries: int = 3) -> list[dict]:
     return rows
 
 
+def looks_daily(rows: list[dict]) -> bool:
+    """A crude spacing check. The provider downsamples silently, so without
+    this a monthly series overwrites a daily one and every downstream replay
+    quietly collapses to a handful of sessions."""
+    if len(rows) < 3:
+        return True
+    gaps = []
+    for a, b in pairwise(rows):
+        da = datetime.strptime(a["date"], "%Y-%m-%d")
+        db = datetime.strptime(b["date"], "%Y-%m-%d")
+        gaps.append((db - da).days)
+    gaps.sort()
+    return gaps[len(gaps) // 2] <= 5          # weekends and holidays, not months
+
+
 def write_csv(symbol: str, rows: list[dict]) -> Path:
     DATA_DIR.mkdir(exist_ok=True)
     path = DATA_DIR / f"{symbol.upper()}.csv"
@@ -111,14 +143,24 @@ def main() -> None:
     parser.add_argument("--range", dest="rng", default="10y",
                         help="1mo, 6mo, 1y, 2y, 5y, 10y, max (default 10y)")
     parser.add_argument("--interval", default="1d", help="1d, 1wk, 1mo (default 1d)")
+    parser.add_argument("--since", default=None, metavar="YYYY-MM-DD",
+                        help="explicit start date. Use this rather than --range for "
+                             "anything over ~10y: long ranges are silently "
+                             "downsampled to monthly bars.")
     args = parser.parse_args()
 
     failures = []
     for symbol in args.symbols:
         try:
-            rows = fetch(symbol, args.rng, args.interval)
+            rows = fetch(symbol, args.rng, args.interval, since=args.since)
         except SystemExit as exc:
             print(f"  {symbol.upper():<6} FAILED: {exc}", file=sys.stderr)
+            failures.append(symbol)
+            continue
+        if args.interval == "1d" and not looks_daily(rows):
+            print(f"  {symbol.upper():<6} REFUSED: provider returned {len(rows)} bars "
+                  f"spanning {rows[0]['date']} to {rows[-1]['date']} — that is not "
+                  f"daily data. Use --since instead of --range.", file=sys.stderr)
             failures.append(symbol)
             continue
         path = write_csv(symbol, rows)

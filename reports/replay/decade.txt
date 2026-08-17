@@ -1,5 +1,5 @@
 # replay baseline: decade
-# 12 symbols, 2511 sessions (2016-08-15 -> 2026-08-14)
+# 12 symbols, 2515 sessions (2016-08-15 -> 2026-08-17)
 # $100,000 start, 2.0 bp/side, 3 wake-ups/session
 #
 # The real Service + Allocator + risk engine over historical bars.
@@ -7,22 +7,22 @@
 # diff here means the desk's BEHAVIOUR changed, not the market.
 
 
-RESULT   equity $164,746.94   return +64.75%   max drawdown 13.0%
+RESULT   equity $164,754.33   return +64.75%   max drawdown 13.0%
          190 fills from 217 orders, 0 still resting
-         25,923 broker calls (10 per session)
-         final book: 12 names, $73,461 gross
-           DBC    $     5,790
-           EEM    $     6,261
-           EFA    $     6,518
-           GLD    $     5,219
-           HYG    $     5,978
-           IEF    $     5,955
-           IWM    $     6,711
-           LQD    $     5,837
-           QQQ    $     6,580
-           SPY    $     6,987
-           TLT    $     5,497
-           VNQ    $     6,127
+         25,959 broker calls (10 per session)
+         final book: 12 names, $73,468 gross
+           DBC    $     5,898
+           EEM    $     6,328
+           EFA    $     6,507
+           GLD    $     5,271
+           HYG    $     5,971
+           IEF    $     5,942
+           IWM    $     6,689
+           LQD    $     5,813
+           QQQ    $     6,569
+           SPY    $     6,954
+           TLT    $     5,450
+           VNQ    $     6,075
 
 1 PATHOLOGY FINDING(S):
-  [EXPOSURE] gross $73,461 finished +4.9% over the $70,000 cap — entry caps do not trim, so only a human closes this
+  [EXPOSURE] gross $73,468 finished +5.0% over the $70,000 cap — entry caps do not trim, so only a human closes this
