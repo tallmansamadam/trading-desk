@@ -44,8 +44,7 @@ class TestFillModel(unittest.TestCase):
     def test_a_gap_through_the_limit_fills_at_the_better_price(self):
         """Opening below a buy limit should fill at the open, not the limit —
         anything else silently flatters or penalises the strategy."""
-        b = ReplayBroker({"AAA": series(100.0) + [{"o": 90.0, "h": 91.0, "l": 89.0,
-                                                   "c": 90.0, "v": 1}]},
+        b = ReplayBroker({"AAA": [*series(100.0), {"o": 90.0, "h": 91.0, "l": 89.0, "c": 90.0, "v": 1}]},
                          ["2026-01-01", "2026-01-02"])
         b.place_order("AAA", "BUY", 10, 99.0)
         b.advance()
@@ -59,8 +58,7 @@ class TestFillModel(unittest.TestCase):
         self.assertEqual(b.fills, [], "the high never reached 105")
 
     def test_market_orders_fill_at_the_next_open(self):
-        b = ReplayBroker({"AAA": series(100.0) + [{"o": 97.5, "h": 99.0, "l": 96.0,
-                                                   "c": 98.0, "v": 1}]},
+        b = ReplayBroker({"AAA": [*series(100.0), {"o": 97.5, "h": 99.0, "l": 96.0, "c": 98.0, "v": 1}]},
                          ["2026-01-01", "2026-01-02"])
         b.place_order("AAA", "BUY", 5, None)
         b.advance()
