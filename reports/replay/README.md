@@ -16,6 +16,7 @@ would otherwise have discovered in production.
 | baseline | period | what it stresses |
 |---|---|---|
 | `covid-crash` | 2020-01 → 2020-06 | a violent gap down and a fast recovery; the daily-loss rail fires ~108 times |
+| `2018-vol` | 2018 | a year where every asset class finished negative, ending in a −13.8% Q4; the desk barely trades |
 | `2022-bear` | 2022 | a slow grind where stocks *and* bonds fall together, so diversification cannot rescue the year |
 | `decade` | 2016-08 → present | the long run, including every rebalance cadence and drift trigger |
 
