@@ -457,9 +457,17 @@ class Allocator:
             orders.append((sym, "BUY" if delta_usd > 0 else "SELL", qty, px, partial))
 
         if not orders:
-            self.journal.write("IN-BALANCE", detail="nothing exceeds the trade floor"
-                               + (f" ({len(pending)} still in flight)" if pending else ""))
-            return
+            # Nothing actionable. Once whole-share rounding leaves every gap
+            # under one share, the book is as close to target as this sizing
+            # can get — that is DONE, not "try again in a minute". Returning
+            # without banking the date made the service replay the same
+            # impossible pass every 60 seconds indefinitely.
+            self.journal.write("IN-BALANCE", detail="no gap is worth a whole share"
+                               + (f"; {len(pending)} still in flight" if pending else ""))
+            if not pending:
+                self.state["last_rebalance"] = datetime.now(UTC).date().isoformat()
+                self._save_state()
+            return 0
 
         # Sells first. They free buying power and reduce gross, so a later buy
         # is less likely to trip the gross cap part-way through a rebalance.
@@ -522,6 +530,7 @@ class Allocator:
                            f"{'sent' if self.a.arm else 'simulated'}"
                            + (", still to do: " + ", ".join(outstanding)
                               if outstanding else ", book at target"))
+        return sent
 
     def run(self) -> None:
         gross, per = self.budget()

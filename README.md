@@ -180,6 +180,11 @@ Windows service install (per-user scheduled task, no admin):
 .\install_service.ps1 -Uninstall
 ```
 
+The service runs in the background with **no window** — there is nothing to find
+in the taskbar. Its interface is a web page; the installer puts a *Trading Desk
+64* shortcut on the desktop and in the Start Menu, both pointing at
+`http://127.0.0.1:6400`.
+
 The service starts **disarmed**. Arming is a decision made while looking at the
 state, not a side effect of a setup script.
 

@@ -101,8 +101,11 @@ if ($Uninstall) {
         Write-Host "  no scheduled task registered"
     }
     Stop-Service-Processes
-    $lnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'Trading Desk 64.lnk'
-    if (Test-Path $lnk) { Remove-Item $lnk -Force; Write-Host "  start menu shortcut removed" }
+    foreach ($dir in @([Environment]::GetFolderPath('Programs'),
+                       [Environment]::GetFolderPath('Desktop'))) {
+        $lnk = Join-Path $dir 'Trading Desk 64.lnk'
+        if (Test-Path $lnk) { Remove-Item $lnk -Force; Write-Host "  removed $lnk" }
+    }
     Write-Host ""
     Write-Host "Uninstalled. Your data, logs and .env are untouched."
     Write-Host "NOTE: any open positions and resting orders are still at the broker."
@@ -137,15 +140,19 @@ Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Description "Claude Trading Desk 64 - paper trading service and dashboard" | Out-Null
 Write-Host "  scheduled task registered (runs at logon, restarts on failure)"
 
-# Start Menu shortcut that opens the dashboard
-$programs = [Environment]::GetFolderPath('Programs')
-$lnkPath = Join-Path $programs 'Trading Desk 64.lnk'
+# The service runs under pythonw, so it has no window and no taskbar entry.
+# Without a shortcut there is literally nothing to click, and a Start Menu
+# entry alone is easy to miss - so put one on the desktop too.
 $shell = New-Object -ComObject WScript.Shell
-$lnk = $shell.CreateShortcut($lnkPath)
-$lnk.TargetPath = $Url
-$lnk.Description = 'Open the Trading Desk 64 dashboard'
-$lnk.Save()
-Write-Host "  start menu shortcut created"
+foreach ($dir in @([Environment]::GetFolderPath('Programs'),
+                   [Environment]::GetFolderPath('Desktop'))) {
+    $lnkPath = Join-Path $dir 'Trading Desk 64.lnk'
+    $lnk = $shell.CreateShortcut($lnkPath)
+    $lnk.TargetPath = $Url
+    $lnk.Description = 'Open the Trading Desk 64 dashboard (service runs in the background)'
+    $lnk.Save()
+}
+Write-Host "  shortcuts created (Start Menu and Desktop)"
 
 Start-ScheduledTask -TaskName $TaskName
 Start-Sleep -Seconds 5
@@ -154,8 +161,13 @@ Write-Host ""
 Show-Status
 Write-Host ""
 Write-Host "Installed. The service starts automatically at logon."
+Write-Host ""
+Write-Host "It runs in the BACKGROUND with no window - there is no app to find in"
+Write-Host "the taskbar. The interface is a web page. Open it with the"
+Write-Host "'Trading Desk 64' shortcut on your desktop, or go to $Url"
+Write-Host ""
 Write-Host "It is DISARMED: it watches and reports but will not place orders."
-Write-Host "Open $Url and press ARM when you want it to trade."
+Write-Host "Press ARM in the dashboard when you want it to trade."
 Write-Host ""
 Write-Host "  .\install_service.ps1 -Status      check on it"
 Write-Host "  .\install_service.ps1 -Uninstall   remove it"

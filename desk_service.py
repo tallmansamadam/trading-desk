@@ -138,6 +138,8 @@ class Service:
     def tick(self) -> None:
         if not self.state.data["armed"]:
             return
+        if time.time() < getattr(self, "_quiet_until", 0):
+            return                       # backing off after a no-op pass
         if trading_halted():
             return                       # HALT is checked again inside risk.py
         since_open = self.minutes_since_open()
@@ -152,11 +154,20 @@ class Service:
         self.state.log("REBALANCE", why)
         self.allocator.a.arm = True      # armed service means armed allocator
         try:
-            self.allocator.rebalance()
+            placed = self.allocator.rebalance()
         finally:
             self.allocator.a.arm = False
         self.state.data["last_rebalance"] = self.allocator.state.get("last_rebalance")
         self.state.save()
+
+        # A pass that placed nothing will place nothing a minute later either:
+        # the gaps have not moved and any resting order has not filled. Back
+        # off so waiting on one unfilled order does not mean a full rebalance
+        # pass, and four broker calls, every single minute.
+        if not placed:
+            self._quiet_until = time.time() + self.a.idle_backoff * 60
+            self.state.log("SETTLED", f"nothing actionable — next check in "
+                                      f"{self.a.idle_backoff:.0f} min")
 
     def scheduler(self) -> None:
         while True:
@@ -372,6 +383,8 @@ def main() -> None:
     ap.add_argument("--drift-pct", type=float, default=25.0)
     ap.add_argument("--min-trade", type=float, default=200.0)
     ap.add_argument("--check-seconds", type=float, default=60.0)
+    ap.add_argument("--idle-backoff", type=float, default=15.0,
+                    help="minutes to wait after a pass that placed no orders")
     ap.add_argument("--open-delay", type=float, default=5.0,
                     help="minutes after the open before the first action")
     ap.add_argument("--no-browser", action="store_true")
