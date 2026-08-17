@@ -125,9 +125,14 @@ def pathology(broker, svc, ticks: int, sessions: int) -> list[tuple[str, str]]:
 
     gross = sum(abs(q) * broker.price(s) for s, q in broker.shares.items())
     cap = getattr(svc.s, "max_gross_notional", None)
-    if cap and gross > cap * 1.05:
-        out.append(("EXPOSURE", f"gross ${gross:,.0f} finished {gross/cap - 1:.0%} over "
-                                f"the ${cap:,.0f} cap"))
+    # Any finish over the cap is worth reporting. The old 5% buffer was
+    # leniency without a reason, and it hid a 4.9% breach in the melt-up
+    # baseline — the exact regime where entry caps drift, since appreciation
+    # carries the book past its ceiling and nothing trims it back.
+    if cap and gross > cap * 1.005:
+        out.append(("EXPOSURE", f"gross ${gross:,.0f} finished {gross/cap - 1:+.1%} over "
+                                f"the ${cap:,.0f} cap — entry caps do not trim, so only "
+                                f"a human closes this"))
     if broker.cash < 0:
         out.append(("MARGIN", f"cash went negative (${broker.cash:,.0f}) — the desk "
                               f"borrowed without being told it could"))

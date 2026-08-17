@@ -1,0 +1,28 @@
+# replay baseline: 2017-meltup
+# 12 symbols, 251 sessions (2017-01-03 -> 2017-12-29)
+# $100,000 start, 2.0 bp/side, 3 wake-ups/session
+#
+# The real Service + Allocator + risk engine over historical bars.
+# Deterministic: same data and flags reproduce this exactly, so a
+# diff here means the desk's BEHAVIOUR changed, not the market.
+
+
+RESULT   equity $108,977.36   return +8.98%   max drawdown 1.7%
+         29 fills from 35 orders, 0 still resting
+         2,529 broker calls (10 per session)
+         final book: 12 names, $73,462 gross
+           DBC    $     6,109
+           EEM    $     6,246
+           EFA    $     6,249
+           GLD    $     5,317
+           HYG    $     6,075
+           IEF    $     5,921
+           IWM    $     6,588
+           LQD    $     5,980
+           QQQ    $     6,489
+           SPY    $     6,560
+           TLT    $     5,941
+           VNQ    $     5,987
+
+1 PATHOLOGY FINDING(S):
+  [EXPOSURE] gross $73,462 finished +4.9% over the $70,000 cap — entry caps do not trim, so only a human closes this

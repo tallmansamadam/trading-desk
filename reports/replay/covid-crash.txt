@@ -25,4 +25,4 @@ RESULT   equity $101,994.18   return +1.99%   max drawdown 15.3%
            VNQ    $     6,185
 
 1 PATHOLOGY FINDING(S):
-  [EXPOSURE] gross $74,280 finished 6% over the $70,000 cap
+  [EXPOSURE] gross $74,280 finished +6.1% over the $70,000 cap — entry caps do not trim, so only a human closes this

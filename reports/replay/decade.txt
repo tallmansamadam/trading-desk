@@ -24,4 +24,5 @@ RESULT   equity $164,746.94   return +64.75%   max drawdown 13.0%
            TLT    $     5,497
            VNQ    $     6,127
 
-NO PATHOLOGIES — behaviour over time looks sane.
+1 PATHOLOGY FINDING(S):
+  [EXPOSURE] gross $73,461 finished +4.9% over the $70,000 cap — entry caps do not trim, so only a human closes this
