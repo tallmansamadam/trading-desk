@@ -1,0 +1,27 @@
+# replay baseline: decade
+# 12 symbols, 2511 sessions (2016-08-15 -> 2026-08-14)
+# $100,000 start, 2.0 bp/side, 3 wake-ups/session
+#
+# The real Service + Allocator + risk engine over historical bars.
+# Deterministic: same data and flags reproduce this exactly, so a
+# diff here means the desk's BEHAVIOUR changed, not the market.
+
+
+RESULT   equity $164,746.94   return +64.75%   max drawdown 13.0%
+         190 fills from 217 orders, 0 still resting
+         25,923 broker calls (10 per session)
+         final book: 12 names, $73,461 gross
+           DBC    $     5,790
+           EEM    $     6,261
+           EFA    $     6,518
+           GLD    $     5,219
+           HYG    $     5,978
+           IEF    $     5,955
+           IWM    $     6,711
+           LQD    $     5,837
+           QQQ    $     6,580
+           SPY    $     6,987
+           TLT    $     5,497
+           VNQ    $     6,127
+
+NO PATHOLOGIES — behaviour over time looks sane.

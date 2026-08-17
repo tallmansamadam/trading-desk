@@ -1,0 +1,27 @@
+# replay baseline: 2022-bear
+# 12 symbols, 251 sessions (2022-01-03 -> 2022-12-30)
+# $100,000 start, 2.0 bp/side, 3 wake-ups/session
+#
+# The real Service + Allocator + risk engine over historical bars.
+# Deterministic: same data and flags reproduce this exactly, so a
+# diff here means the desk's BEHAVIOUR changed, not the market.
+
+
+RESULT   equity $88,972.99   return -11.03%   max drawdown 15.2%
+         50 fills from 81 orders, 0 still resting
+         3,384 broker calls (13 per session)
+         final book: 12 names, $68,314 gross
+           DBC    $     5,179
+           EEM    $     6,303
+           EFA    $     6,864
+           GLD    $     5,768
+           HYG    $     5,540
+           IEF    $     5,744
+           IWM    $     5,351
+           LQD    $     5,497
+           QQQ    $     5,741
+           SPY    $     5,851
+           TLT    $     5,601
+           VNQ    $     4,876
+
+NO PATHOLOGIES — behaviour over time looks sane.

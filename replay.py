@@ -41,6 +41,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
+REPORT_DIR = ROOT / "reports" / "replay"
 
 DEFAULT_UNIVERSE = ["SPY", "QQQ", "IWM", "EFA", "EEM", "TLT",
                     "IEF", "LQD", "HYG", "GLD", "DBC", "VNQ"]
@@ -158,6 +159,8 @@ def main() -> None:
     ap.add_argument("--idle-backoff", type=float, default=15.0)
     ap.add_argument("--pathology", action="store_true", help="run behavioural checks")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--save", metavar="NAME",
+                    help="write a summary to reports/replay/NAME.txt as a\nbehavioural baseline")
     args = ap.parse_args()
 
     symbols = [s.upper() for s in args.symbols]
@@ -199,21 +202,37 @@ def main() -> None:
         peak = max(peak, v)
         dd = max(dd, 1 - v / peak)
 
-    print(f"\nRESULT   equity ${eq:,.2f}   return {ret:+.2%}   max drawdown {dd:.1%}")
-    print(f"         {len(broker.fills)} fills from {broker._oid} orders, "
-          f"{len(broker.resting)} still resting")
-    print(f"         {broker.api_calls:,} broker calls "
-          f"({broker.api_calls/max(sessions,1):.0f} per session)")
     held = {s: q * broker.price(s) for s, q in broker.shares.items() if q}
-    print(f"         final book: {len(held)} names, "
-          f"${sum(held.values()):,.0f} gross")
-    if args.verbose:
-        for s, v in sorted(held.items()):
-            print(f"           {s:<6} ${v:>10,.0f}")
+    summary: list[str] = []
 
+    def out(line: str = "") -> None:
+        print(line)
+        summary.append(line)
+
+    out()
+    out(f"RESULT   equity ${eq:,.2f}   return {ret:+.2%}   max drawdown {dd:.1%}")
+    out(f"         {len(broker.fills)} fills from {broker._oid} orders, "
+        f"{len(broker.resting)} still resting")
+    out(f"         {broker.api_calls:,} broker calls "
+        f"({broker.api_calls/max(sessions,1):.0f} per session)")
+    out(f"         final book: {len(held)} names, ${sum(held.values()):,.0f} gross")
+    for sym, v in sorted(held.items()):
+        line = f"           {sym:<6} ${v:>10,.0f}"
+        summary.append(line)
+        if args.verbose:
+            print(line)
+
+    findings = []
     if args.pathology:
         print("\n" + "=" * 74)
         findings = pathology(broker, svc, args.ticks_per_day, sessions)
+        summary.append("")
+        if findings:
+            summary.append(f"{len(findings)} PATHOLOGY FINDING(S):")
+            for kind, detail in findings:
+                summary.append(f"  [{kind}] {detail}")
+        else:
+            summary.append("NO PATHOLOGIES — behaviour over time looks sane.")
         if findings:
             print(f"  {len(findings)} PATHOLOGY FINDING(S):")
             for kind, detail in findings:
@@ -221,6 +240,26 @@ def main() -> None:
         else:
             print("  NO PATHOLOGIES — behaviour over time looks sane.")
         print("=" * 74)
+
+    if args.save:
+        REPORT_DIR.mkdir(parents=True, exist_ok=True)
+        path = REPORT_DIR / f"{args.save}.txt"
+        header = [
+            f"# replay baseline: {args.save}",
+            f"# {len(symbols)} symbols, {len(dates)} sessions "
+            f"({dates[0]} -> {dates[-1]})",
+            f"# ${args.equity:,.0f} start, {args.cost_bps} bp/side, "
+            f"{args.ticks_per_day} wake-ups/session",
+            "#",
+            "# The real Service + Allocator + risk engine over historical bars.",
+            "# Deterministic: same data and flags reproduce this exactly, so a",
+            "# diff here means the desk's BEHAVIOUR changed, not the market.",
+            "",
+        ]
+        path.write_text("\n".join(header + summary) + "\n", encoding="utf-8")
+        print(f"\nsaved {path.relative_to(ROOT)}")
+
+    if args.pathology:
         sys.exit(1 if findings else 0)
 
 

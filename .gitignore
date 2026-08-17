@@ -10,3 +10,4 @@ sleeper.log
 
 # reconciliation reports ARE tracked — they are the audit trail
 !reports/reconciliation/*.txt
+!reports/replay/*.txt

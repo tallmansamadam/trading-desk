@@ -1,0 +1,28 @@
+# replay baseline: covid-crash
+# 12 symbols, 125 sessions (2020-01-02 -> 2020-06-30)
+# $100,000 start, 2.0 bp/side, 3 wake-ups/session
+#
+# The real Service + Allocator + risk engine over historical bars.
+# Deterministic: same data and flags reproduce this exactly, so a
+# diff here means the desk's BEHAVIOUR changed, not the market.
+
+
+RESULT   equity $101,994.18   return +1.99%   max drawdown 15.3%
+         59 fills from 66 orders, 0 still resting
+         2,039 broker calls (16 per session)
+         final book: 12 names, $74,280 gross
+           DBC    $     6,405
+           EEM    $     6,272
+           EFA    $     6,351
+           GLD    $     6,193
+           HYG    $     6,034
+           IEF    $     5,935
+           IWM    $     6,392
+           LQD    $     6,115
+           QQQ    $     6,461
+           SPY    $     6,247
+           TLT    $     5,691
+           VNQ    $     6,185
+
+1 PATHOLOGY FINDING(S):
+  [EXPOSURE] gross $74,280 finished 6% over the $70,000 cap
