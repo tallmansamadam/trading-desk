@@ -1,0 +1,35 @@
+# reconciliation report — WARN
+# generated 2026-08-17T16:29:54+00:00
+# mode paper   window 3d
+# read-only: this records a discrepancy check, it does not correct one
+
+========================================================================
+  RECONCILIATION — account PA****I7Y   last 3 day(s)
+  halted: False
+========================================================================
+
+ORDERS   journal says sent: 23   at broker: 26   matched: 23
+  note   at the broker but not in any journal: SPY buy 1 (canceled) id=e2f85b79
+  note   at the broker but not in any journal: SPY buy 1 (canceled) id=394271f1
+  note   at the broker but not in any journal: SPY buy 1 (canceled) id=67474214
+
+BOOK     target $5,833 per name
+  SPY    $     5,427  vs $    5,833        -7%
+  QQQ    $     5,129  vs $    5,833       -12%
+  IWM    $     5,779  vs $    5,833        -1%
+  EFA    $     5,761  vs $    5,833        -1%
+  EEM    $         0  vs $    5,833      -100%   <-- not held
+  TLT    $     5,797  vs $    5,833        -1%
+  IEF    $     5,765  vs $    5,833        -1%
+  LQD    $     5,826  vs $    5,833        -0%
+  HYG    $     5,816  vs $    5,833        -0%
+  GLD    $     5,682  vs $    5,833        -3%
+  DBC    $     5,843  vs $    5,833        +0%
+  VNQ    $     5,781  vs $    5,833        -1%
+
+LIMITS   gross $62,607 of $70,000 cap (89%)
+
+========================================================================
+  1 warning(s):
+    - EEM is in the target universe but not held
+========================================================================
