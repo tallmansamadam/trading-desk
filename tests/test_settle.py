@@ -17,7 +17,6 @@ import tempfile
 import types
 import unittest
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

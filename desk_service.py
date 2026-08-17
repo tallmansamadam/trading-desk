@@ -96,7 +96,22 @@ class Service:
         self.lock = threading.Lock()
         self._snap: tuple[float, dict] | None = None
         self._bars: dict[tuple, tuple[float, list]] = {}
+        self._quiet_until = 0.0
         self.allocator = self._make_allocator()
+
+    def monotonic(self) -> float:
+        """Seconds for scheduling decisions.
+
+        Injectable rather than a bare time.time() call, for two reasons. A
+        replay compresses years into seconds, so a wall-clock backoff would
+        silence the desk for an entire run — which is exactly what happened the
+        first time this was replayed. And a backoff measured against wall clock
+        cannot be unit-tested without actually waiting.
+
+        A broker that owns its own clock (the replay broker does) supplies it;
+        otherwise this is real elapsed time."""
+        clock = getattr(self.b, "sim_seconds", None)
+        return float(clock()) if callable(clock) else time.time()
 
     def _make_allocator(self):
         """Reuse run_desk.Allocator as the strategy; the service owns timing."""
@@ -138,7 +153,7 @@ class Service:
     def tick(self) -> None:
         if not self.state.data["armed"]:
             return
-        if time.time() < getattr(self, "_quiet_until", 0):
+        if self.monotonic() < self._quiet_until:
             return                       # backing off after a no-op pass
         if trading_halted():
             return                       # HALT is checked again inside risk.py
@@ -165,7 +180,7 @@ class Service:
         # off so waiting on one unfilled order does not mean a full rebalance
         # pass, and four broker calls, every single minute.
         if not placed:
-            self._quiet_until = time.time() + self.a.idle_backoff * 60
+            self._quiet_until = self.monotonic() + self.a.idle_backoff * 60
             self.state.log("SETTLED", f"nothing actionable — next check in "
                                       f"{self.a.idle_backoff:.0f} min")
 
